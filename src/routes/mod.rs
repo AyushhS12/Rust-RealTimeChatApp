@@ -2,7 +2,7 @@
 use crate::{ routes::auth::*};
 use axum::{routing::{get, post}, Router};
 mod auth;
-
+// #[axum::debug_handler]
 pub async fn handle_auth_routes() -> Router {
     let router = Router::new()
         .route("/signup", post(signup))

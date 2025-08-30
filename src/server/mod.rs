@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{ middleware, Extension, Router};
 use tokio::net::TcpListener;
 
-use crate::{db::Db, middleware::auth_middleware, routes::*};
+use crate::{db::Db, middleware::auth_middleware, routes::*, thread_pool::ThreadPool};
 
 pub struct Server {
     addr: &'static str,

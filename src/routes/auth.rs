@@ -3,7 +3,7 @@ use std::{env, sync::Arc, usize};
 use axum::{
     body::{to_bytes, Body},
     extract::Request,
-    http::{HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
     Extension, Json,
 };
@@ -35,7 +35,6 @@ pub async fn signup(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> im
 pub async fn login(
     Extension(db): Extension<Arc<Db>>,
     Json(body): Json<Value>,
-    req:&mut Request<Body>,
 ) -> impl IntoResponse {
     let data: LoginUser = from_value(body).unwrap();
     let user = db.find_user_with_email(data.email).await;
@@ -45,28 +44,22 @@ pub async fn login(
             let secret = env::var("JWT_SECRET").unwrap();
             let key = &EncodingKey::from_secret(secret.as_ref());
             let token = encode(&Header::new(jsonwebtoken::Algorithm::HS256), claims, key);
-            let res = req.headers_mut().append(
+            let mut headers = HeaderMap::new();
+            headers.append(
                 "X-Authorization",
                 HeaderValue::from_str(token.unwrap().as_str()).unwrap(),
             );
-            if res {
-                (
-                    StatusCode::OK,
-                    Json(json!({
-                        "success":res
-                    })),
-                )
-            } else {
-                (
-                    StatusCode::UNAUTHORIZED,
-                    Json(json!({
-                        "success":res
-                    })),
-                )
-            }
+            (
+                StatusCode::OK,
+                headers,
+                Json(json!({
+                    "success":true
+                })),
+            )
         }
         None => (
             StatusCode::NOT_ACCEPTABLE,
+            HeaderMap::new(),
             Json(json!({
                 "success":false,
                 "err":"user not found"

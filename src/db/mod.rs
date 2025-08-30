@@ -3,7 +3,11 @@ use mongodb::{
     bson::{self, doc, oid::ObjectId, Bson, Document},
     Client, Collection,
 };
-use std::{env, sync::Arc};
+use std::{env, str::FromStr, sync::Arc};
+
+trait IntoObjectId {
+    fn into_object_id(self) -> ObjectId;
+}
 
 #[derive(Clone)]
 pub struct Db {
@@ -14,6 +18,19 @@ pub struct Db {
     requests: Arc<Collection<Requests>>,
     group_messages: Arc<Collection<GroupMessage>>,
 }
+
+impl IntoObjectId for String{
+    fn into_object_id(self) -> ObjectId {
+        ObjectId::from_str(&self).unwrap()   
+    }
+}
+
+impl IntoObjectId for ObjectId{
+    fn into_object_id(self) -> ObjectId {
+        self
+    }
+}
+
 
 impl Db {
     pub async fn init() -> Result<Self, String> {
@@ -46,8 +63,8 @@ impl Db {
         }
     }
 
-    pub async fn find_user_with_id(&self, id: ObjectId) -> Option<User> {
-        let res = self.users.find_one(doc! {"_id":id}).await;
+    pub async fn find_user_with_id(&self, id: impl IntoObjectId) -> Option<User> {
+        let res = self.users.find_one(doc! {"_id":id.into_object_id()}).await;
         match res {
             Ok(r)=>{
                 r
