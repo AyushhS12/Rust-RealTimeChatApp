@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::{ middleware, Extension, Router};
 use tokio::net::TcpListener;
 
-use crate::{db::Db, middleware::auth_middleware, routes::*, thread_pool::ThreadPool};
+use crate::{db::Db, middleware::auth_middleware, routes::*};
 
 pub struct Server {
     addr: &'static str,
@@ -23,8 +23,9 @@ impl Server {
 
     async fn manage_routers(self) -> Router{
         let mut router = Router::new();
+        router = router.nest("/api", handle_api_routes().await);
+        router = router.nest("/user", handle_user_routes().await).layer(middleware::from_fn_with_state(self.db, auth_middleware));
         router = router.nest("/auth", handle_auth_routes().await);
-        router = router.nest("/api", handle_api_routes().await).layer(middleware::from_fn_with_state(self.db,auth_middleware));
         router
     }
 }

@@ -1,13 +1,16 @@
 
+use std::ops::{Deref};
+
 use mongodb::bson::oid::ObjectId;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize,Debug)]
+#[derive(Clone,Serialize, Deserialize,Debug)]
 pub struct User{
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     id: Option<ObjectId>,
     name:String,
-    email:String,
+    pub username:String,
+    pub email:String,
     password:String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     received_reqs: Vec<ObjectId>,
@@ -20,6 +23,10 @@ pub struct User{
 impl User{
     pub fn get_id(&self) -> Option<ObjectId>{
         self.id
+    }
+    pub fn protect_pass(&mut self) -> Self{
+        self.password = String::new();
+        self.deref().to_owned().clone()
     }
 }
 
@@ -55,9 +62,9 @@ pub struct Message{
 pub struct Requests{
     #[serde(rename = "_id")]
     id:Option<ObjectId>,
-    from_id:Option<ObjectId>,
-    to_id:Option<ObjectId>,
-    status:String
+    pub from_id:Option<ObjectId>,
+    pub to_id:Option<ObjectId>,
+    pub status:String
 }
 
 #[derive(Debug,Serialize,Deserialize)]
@@ -76,6 +83,6 @@ pub struct LoginUser{
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims{
-    pub sub:User,
-    pub exp:Option<usize>
+    pub sub:String,
+    pub exp:usize
 }

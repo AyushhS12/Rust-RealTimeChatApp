@@ -1,9 +1,14 @@
-use std::{env, sync::Arc, usize};
+use std::{
+    env,sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}, usize
+};
 
 use axum::{
     body::{to_bytes, Body},
     extract::Request,
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{
+        header::{self},
+        HeaderMap, HeaderValue, StatusCode,
+    },
     response::IntoResponse,
     Extension, Json,
 };
@@ -14,20 +19,19 @@ use crate::{db::Db, models::*};
 
 pub async fn signup(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> impl IntoResponse {
     let (_, body) = req.into_parts();
-    let data = to_bytes(body, usize::MAX).await.unwrap();
-    let data = String::from_utf8_lossy(data.as_ref()).into_owned();
+    let bytes = to_bytes(body, usize::MAX).await.unwrap();
+    let data = String::from_utf8_lossy(&bytes).into_owned();
     let val: User = from_str(&data).unwrap();
-    println!("{:?}", val);
     let res = db.create_user(&val).await;
     match res {
-        Ok(id) => Json(json!({
+        Ok(id) => (StatusCode::OK,Json(json!({
             "inserted_id":id
-        })),
+        }))),
         Err(e) => {
             println!("{}", e.to_string());
-            Json(json!({
-                "err":"cannot create account try again"
-            }))
+            (StatusCode::NOT_ACCEPTABLE,Json(json!({
+                "err":e.to_string()
+            })))
         }
     }
 }
@@ -40,15 +44,18 @@ pub async fn login(
     let user = db.find_user_with_email(data.email).await;
     match user {
         Some(u) => {
-            let claims = &Claims { sub: u, exp: None };
+            let exp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
+                + Duration::from_secs(28 * 24 * 3600);
+            let claims = &Claims {
+                sub: u.get_id().unwrap().to_hex(),
+                exp: exp.as_secs() as usize,
+            };
             let secret = env::var("JWT_SECRET").unwrap();
-            let key = &EncodingKey::from_secret(secret.as_ref());
+            let key = &EncodingKey::from_secret(secret.as_bytes());
             let token = encode(&Header::new(jsonwebtoken::Algorithm::HS256), claims, key);
             let mut headers = HeaderMap::new();
-            headers.append(
-                "X-Authorization",
-                HeaderValue::from_str(token.unwrap().as_str()).unwrap(),
-            );
+            let value = format!("jwt={}; HttpOnly; Path=/;", token.unwrap());
+            headers.append(header::SET_COOKIE, HeaderValue::from_str(&value).unwrap());
             (
                 StatusCode::OK,
                 headers,

@@ -1,11 +1,10 @@
 use crate::models::*;
 use mongodb::{
-    bson::{self, doc, oid::ObjectId, Bson, Document},
-    Client, Collection,
+    bson::{self, doc, oid::ObjectId, Bson}, options::FindOptions, Client, Collection, Cursor
 };
 use std::{env, str::FromStr, sync::Arc};
-
-trait IntoObjectId {
+use mongodb::error::Error;
+pub trait IntoObjectId {
     fn into_object_id(self) -> ObjectId;
 }
 
@@ -84,6 +83,30 @@ impl Db {
     }
 
     pub async fn create_user(&self, user: &User) -> Result<Bson, String> {
+        let res = self.users.find_one(doc! {"username":user.username.clone()}).await;
+        match res {
+            Ok(Some(_)) => {
+                return Err(String::from("user already exists with this username"));
+            },
+            Ok(None)=>{
+                ()
+            },
+            Err(e) => {
+                println!("{}", e.to_string());
+            }
+        }
+        let res = self.users.find_one(doc! {"email":user.email.clone()}).await;
+        match res {
+            Ok(Some(_)) => {
+                return Err(String::from("user already exists with this email"));
+            },
+            Ok(None)=>{
+                ()
+            },
+            Err(e) => {
+                println!("{}", e.to_string());
+            }
+        }
         let res = self.users.insert_one(user).await;
         match res {
             Ok(doc) => Ok(doc.inserted_id),
@@ -93,23 +116,38 @@ impl Db {
             }
         }
     }
+     pub async fn find_users_with_substring(&self,name: String) -> Result<Cursor<User>, Error>{
+        let filter = doc! {
+            "username":{
+                "$regex":name,
+                "$options":"i"
+            },
+        };
+        let find_options = FindOptions::builder().limit(5).build();
+        let cursor = self.users.find(filter).with_options(find_options).await;
+        cursor
+     }
 
-    pub async fn users(self) -> Arc<Collection<User>> {
-        self.users.clone()
-    }
-    pub async fn chats(self) -> Arc<Collection<Chat>> {
-        self.chats.clone()
-    }
-    pub async fn messages(self) -> Arc<Collection<Message>> {
-        self.messages.clone()
-    }
-    pub async fn requests(self) -> Arc<Collection<Requests>> {
-        self.requests.clone()
-    }
-    pub async fn groups(self) -> Arc<Collection<Group>> {
-        self.groups.clone()
-    }
-    pub async fn groups_messages(self) -> Arc<Collection<GroupMessage>> {
-        self.group_messages.clone()
-    }
+     pub async fn add_friend_request(&self, req: Requests) -> Result<Requests, Error>{
+        // let res = self.users.find_one()
+        Ok(req)
+     }
+    // pub async fn users(self) -> Arc<Collection<User>> {
+    //     self.users.clone()
+    // }
+    // pub async fn chats(self) -> Arc<Collection<Chat>> {
+    //     self.chats.clone()
+    // }
+    // pub async fn messages(self) -> Arc<Collection<Message>> {
+    //     self.messages.clone()
+    // }
+    // pub async fn requests(self) -> Arc<Collection<Requests>> {
+    //     self.requests.clone()
+    // }
+    // pub async fn groups(self) -> Arc<Collection<Group>> {
+    //     self.groups.clone()
+    // }
+    // pub async fn groups_messages(self) -> Arc<Collection<GroupMessage>> {
+    //     self.group_messages.clone()
+    // }
 }

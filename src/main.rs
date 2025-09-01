@@ -5,6 +5,7 @@ mod models;
 mod db;
 mod middleware;
 mod thread_pool;
+mod utils;
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().unwrap();
