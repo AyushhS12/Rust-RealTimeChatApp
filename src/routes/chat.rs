@@ -9,7 +9,7 @@ use axum::{
     Extension,
 };
 use futures::{SinkExt, StreamExt};
-use mongodb::bson::{self, Bson};
+use mongodb::bson;
 use serde_json::{from_str, to_string};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
@@ -89,49 +89,57 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
 
     tokio::spawn(async move {
         loop {
-            if let Some(Ok(msg)) = receiver.next().await {
-                if let Ok(data) = msg.to_text() {
-                    if let Ok(mut message) = from_str::<Msg>(data) {
-                        let client = {
-                            let mgr = manager_rx.lock().await;
-                            mgr.find(&message.to_id.clone().unwrap().to_hex()).cloned()
-                        };
-                        message.from_id = Some(id.clone().into_object_id());
-                        let mut sender = sender_rx.lock().await;
-                        match client {
-                            Some(c) => {
-                                message.created_at = Some(bson::DateTime::now());
-                                let r = c.sender.send(message.clone());
-                                match r {
-                                    Ok(()) => {
-                                        let res = db_rx.add_message_to_db(message.clone()).await;
-                                        println!("{:?}", res);
-                                        sender.send(Message::text("hello")).await.unwrap();
-                                    }
-                                    Err(e) => {
-                                        sender
-                                            .send(Message::text(String::from(
-                                                "Message cannot be sent",
-                                            )))
-                                            .await
-                                            .unwrap();
-                                        println!("{}", e.to_string())
+            match receiver.next().await {
+                Some(Ok(msg)) => {
+                    if let Ok(data) = msg.to_text() {
+                        if let Ok(mut message) = from_str::<Msg>(data) {
+                            let client = {
+                                let mgr = manager_rx.lock().await;
+                                mgr.find(&message.to_id.clone().unwrap().to_hex()).cloned()
+                            };
+                            message.from_id = Some(id.clone().into_object_id());
+                            let mut sender = sender_rx.lock().await;
+                            match client {
+                                Some(c) => {
+                                    message.created_at = Some(bson::DateTime::now());
+                                    let r = c.sender.send(message.clone());
+                                    match r {
+                                        Ok(()) => {
+                                            let res =
+                                                db_rx.add_message_to_db(message.clone()).await;
+                                            println!("{:?}", res);
+                                            sender.send(Message::text("hello")).await.unwrap();
+                                        }
+                                        Err(e) => {
+                                            sender
+                                                .send(Message::text(String::from(
+                                                    "Message cannot be sent",
+                                                )))
+                                                .await
+                                                .unwrap();
+                                            println!("{}", e.to_string())
+                                        }
                                     }
                                 }
+                                None => {
+                                    let res = db_rx.add_message_to_db(message).await;
+                                    println!("{:?}", res);
+                                }
                             }
-                            None => {
-                                let res = db_rx.add_message_to_db(message).await;
-                                println!("{:?}", res);
-                            }
+                        } else {
+                            println!("kuch aur dikkat hai");
                         }
                     } else {
-                        println!("kuch aur dikkat hai");
+                        println!("kuch dikkat hai");
                     }
-                } else {
-                    println!("kuch dikkat hai");
                 }
-            } else {
-                println!("badi dikkat hai");
+                Some(Err(e)) => {
+                    println!("{:?}",e);
+                }
+                None => {
+                    manager_rx.lock().await.remove(id);
+                    break;
+                }
             }
         }
     });

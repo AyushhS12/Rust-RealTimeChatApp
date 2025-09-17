@@ -1,6 +1,5 @@
 use crate::models::*;
 use futures::StreamExt;
-use mongodb::action::InsertOne;
 use mongodb::error::Error;
 use mongodb::results::InsertOneResult;
 use mongodb::{
