@@ -1,11 +1,19 @@
-use std::sync::Arc;
-use futures::stream::StreamExt;
 use axum::{
-    body::{to_bytes, Body}, extract::Request, http::StatusCode, response::IntoResponse, Extension, Json,
+    body::{to_bytes, Body},
+    extract::Request,
+    http::StatusCode,
+    response::IntoResponse,
+    Extension, Json,
 };
+use futures::stream::StreamExt;
 use serde_json::{from_str, json};
+use std::{sync::Arc, usize};
 
-use crate::{db::{Db, IntoObjectId},models::{Requests, User}, utils::{extract_cookie, extract_cookie_into_user}};
+use crate::{
+    db::{Db, IntoObjectId},
+    models::{FriendReq, RequestHandler, Requests, User},
+    utils::{extract_cookie, extract_cookie_into_user},
+};
 
 pub async fn profile(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> impl IntoResponse {
     let res = extract_cookie_into_user(req, &db).await;
@@ -41,27 +49,31 @@ pub async fn search<T>(Extension(db): Extension<Arc<Db>>, req: Request<T>) -> im
     match query {
         Some(q) => {
             println!("{}", q);
-            let res = db.find_users_with_substring(q.split_once("=").unwrap().1.to_string()).await;
+            let res = db
+                .find_users_with_substring(q.split_once("=").unwrap().1.to_string())
+                .await;
             match res {
                 Ok(mut cursor) => {
-                    let mut users:Vec<User> = vec![];
-                    while let Some(Ok(user)) = cursor.next().await{
+                    let mut users: Vec<User> = vec![];
+                    while let Some(Ok(user)) = cursor.next().await {
                         users.push(user);
                     }
                     (
-                    StatusCode::OK,
-                    Json(json!({
-                        "user":users,
-                    })),
-                )},
+                        StatusCode::OK,
+                        Json(json!({
+                            "user":users,
+                        })),
+                    )
+                }
                 Err(e) => {
-                    println!("{}",e.to_string());
+                    println!("{}", e.to_string());
                     (
-                    StatusCode::OK,
-                    Json(json!({
-                        "err":"user not found"
-                    })),
-                )},
+                        StatusCode::OK,
+                        Json(json!({
+                            "err":"user not found"
+                        })),
+                    )
+                }
             }
         }
         None => (
@@ -73,20 +85,64 @@ pub async fn search<T>(Extension(db): Extension<Arc<Db>>, req: Request<T>) -> im
     }
 }
 
-pub async fn add_friend(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> impl IntoResponse{
+pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> impl IntoResponse {
     let (parts, body) = r.into_parts();
     let bytes = to_bytes(body, usize::MAX).await.unwrap();
     let data = String::from_utf8_lossy(&bytes).into_owned();
-    let req = from_str::<Requests>(&data);
+    let req = from_str::<FriendReq>(&data);
     match req {
-        Ok(mut request) => {
+        Ok(r) => {
+            let mut request = Requests::new_from_friend_req(r);
             request.from_id = Some(extract_cookie(parts).await.unwrap().sub.into_object_id());
-            if request.status == ""{
-                let res = db.add_friend_request(request).await;
+            let res = db.add_friend_request(request).await;
+            match res {
+                Ok(id) => (
+                    StatusCode::OK,
+                    Json(json!({
+                        "inserted_id":id
+                    })),
+                ),
+                Err(e) => (
+                    StatusCode::NOT_ACCEPTABLE,
+                    Json(json!({
+                        "err":e
+                    })),
+                ),
             }
+        }
+        Err(e) => {
+            println!("{}", e.to_string());
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                        "err":"invalid request"
+                })),
+            )
+        }
+    }
+}
+
+pub async fn handle_friend_request(
+    Extension(db): Extension<Arc<Db>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    let (parts , body) = req.into_parts();
+    let claims = extract_cookie(parts).await.unwrap();
+    let data = to_bytes(body, usize::MAX).await.unwrap();
+    let mut request = from_str::<RequestHandler>(String::from_utf8_lossy(&data).into_owned().as_str()).unwrap();
+    request.from_id = Some(claims.sub.into_object_id());
+    let res = db.handle_friend_request(request).await;
+    match res {
+        Ok(()) => {
+            (StatusCode::OK, Json(json!({
+                "success":true
+            })))
         },
-        Err(e)=>{
-            println!("{}",e.to_string());
+        Err(e)=> {
+            println!("{}",e);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
+                "err":e
+            })))
         }
     }
 }

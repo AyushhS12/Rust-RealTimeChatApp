@@ -21,8 +21,8 @@ pub async fn signup(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> im
     let (_, body) = req.into_parts();
     let bytes = to_bytes(body, usize::MAX).await.unwrap();
     let data = String::from_utf8_lossy(&bytes).into_owned();
-    let val: User = from_str(&data).unwrap();
-    let res = db.create_user(&val).await;
+    let mut val: User = from_str(&data).unwrap();
+    let res = db.create_user(&mut val).await;
     match res {
         Ok(id) => (StatusCode::OK,Json(json!({
             "inserted_id":id
@@ -41,7 +41,7 @@ pub async fn login(
     Json(body): Json<Value>,
 ) -> impl IntoResponse {
     let data: LoginUser = from_value(body).unwrap();
-    let user = db.find_user_with_email(data.email).await;
+    let user = db.find_user_with_email(data.email.clone()).await;
     match user {
         Some(u) => {
             let exp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
@@ -56,6 +56,7 @@ pub async fn login(
             let mut headers = HeaderMap::new();
             let value = format!("jwt={}; HttpOnly; Path=/;", token.unwrap());
             headers.append(header::SET_COOKIE, HeaderValue::from_str(&value).unwrap());
+            let _ = db.update_last_login(data.email).await;
             (
                 StatusCode::OK,
                 headers,

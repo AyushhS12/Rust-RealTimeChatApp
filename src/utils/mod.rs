@@ -8,14 +8,52 @@ use crate::{
     models::{Claims, User},
 };
 
-pub async fn extract_cookie(parts: Parts) -> Result<Claims, String>{
+pub async fn extract_cookie_for_ws(parts: Parts) -> Option<String> {
     let cookie = parts.headers.get("Cookie");
     match cookie {
         Some(cookie) => {
             let jwt = cookie.to_str().unwrap();
-            let (_,token) = jwt.split_once("=").unwrap();
-            let claims = validate_jwt(token);
-            claims
+            let token = jwt.strip_prefix("jwt=");
+            match token {
+                Some(t) => {
+                    let claims = validate_jwt(t);
+                    match claims {
+                        Ok(c) => Some(c.sub),
+                        Err(e) => {
+                            println!("{e}");
+                            None
+                        }
+                    }
+                }
+                None => {
+                    println!("jwt is going crazy 1");
+                    None
+                }
+            }
+        }
+        None => {
+            println!("cookie invalid");
+            None
+        }
+    }
+}
+
+pub async fn extract_cookie(parts: Parts) -> Result<Claims, String> {
+    let cookie = parts.headers.get("Cookie");
+    match cookie {
+        Some(cookie) => {
+            let jwt = cookie.to_str().unwrap();
+            let res = jwt.split_once("=");
+            match res {
+                Some((name, token)) => {
+                    if name == "jwt" {
+                        validate_jwt(token)
+                    } else {
+                        Err(String::from("invalid name of token"))
+                    }
+                }
+                None => Err(String::from("jwt is going crazy")),
+            }
         }
         None => Err("cookie invalid".to_string()),
     }
@@ -25,8 +63,8 @@ pub async fn extract_cookie_into_user(req: Request<Body>, db: &Db) -> Result<Opt
     let (parts, _) = req.into_parts();
     let claims = extract_cookie(parts).await;
     match claims {
-                Ok(claims) => Ok(db.find_user_with_id(claims.sub).await),
-                Err(e) => Err(e),
+        Ok(claims) => Ok(db.find_user_with_id(claims.sub).await),
+        Err(e) => Err(e),
     }
 }
 

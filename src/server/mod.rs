@@ -1,18 +1,19 @@
 use std::sync::Arc;
 
 use axum::{ middleware, Extension, Router};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, sync::Mutex};
 
-use crate::{db::Db, middleware::auth_middleware, routes::*};
+use crate::{db::Db, middleware::auth_middleware, routes::{chat::Manager, *}};
 
 pub struct Server {
     addr: &'static str,
-    db:Arc<Db>
+    db:Arc<Db>,
+    manager:Arc<Mutex<Manager>>
 }
 
 impl Server {
     pub async fn new(addr: &'static str) -> Self {
-        Server { addr,db:Arc::new(Db::init().await.unwrap()) }
+        Server { addr,db:Arc::new(Db::init().await.unwrap()) , manager: Arc::new(Mutex::new(Manager::new()))}
     }
     pub async fn listen(self) {
         let listener = TcpListener::bind(self.addr).await.unwrap();
@@ -24,6 +25,7 @@ impl Server {
     async fn manage_routers(self) -> Router{
         let mut router = Router::new();
         router = router.nest("/api", handle_api_routes().await);
+        router = router.nest("/chat", handle_chat_routes().await).layer(Extension(self.manager.clone()));
         router = router.nest("/user", handle_user_routes().await).layer(middleware::from_fn_with_state(self.db, auth_middleware));
         router = router.nest("/auth", handle_auth_routes().await);
         router
