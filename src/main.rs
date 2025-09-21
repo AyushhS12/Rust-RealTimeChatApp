@@ -4,11 +4,9 @@ mod routes;
 mod models;
 mod db;
 mod middleware;
-mod thread_pool;
 mod utils;
 #[tokio::main]
 async fn main() {
     dotenv::dotenv().unwrap();
-    let server = Server::new("127.0.0.1:7878").await.listen();
-    server.await
+    let _ = Server::new("127.0.0.1:7878").await.listen().await;
 }

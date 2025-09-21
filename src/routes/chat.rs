@@ -1,23 +1,23 @@
 use axum::{
     body::Body,
     extract::{
-        ws::{Message, WebSocket},
-        WebSocketUpgrade,
+        ws::{Message, WebSocket}, State, WebSocketUpgrade
     },
     http::Request,
     response::IntoResponse,
-    Extension,
+    Error, Extension,
 };
 use futures::{SinkExt, StreamExt};
-use mongodb::bson;
+use mongodb::bson::{self, oid::ObjectId};
 use serde_json::{from_str, to_string};
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use tokio::sync::{mpsc, Mutex};
 
 use crate::{
-    db::{Db, IntoObjectId},
-    models::Message as Msg,
-    utils::extract_cookie_for_ws,
+    db::{Db, IntoObjectId}, models::Message as Msg, server::GroupManager, utils::extract_cookie_for_ws
 };
 #[derive(Clone)]
 pub struct Client {
@@ -134,7 +134,7 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                     }
                 }
                 Some(Err(e)) => {
-                    println!("{:?}",e);
+                    println!("{:?}", e);
                 }
                 None => {
                     manager_rx.lock().await.remove(id);
@@ -153,4 +153,61 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                 .unwrap();
         }
     });
+}
+
+pub async fn handle_group_connection(
+    ws: WebSocketUpgrade,
+    Extension(manager): Extension<Arc<Mutex<Manager>>>,
+    Extension(group_manager): Extension<GroupManager>,
+    Extension(db): Extension<Arc<Db>>,
+    req: Request<Body>,
+) -> impl IntoResponse {
+    ws.on_failed_upgrade(|err: Error| println!("{}", err.to_string()))
+        .on_upgrade(|ws| async move {
+            let (parts, _) = req.into_parts();
+            let cookie = extract_cookie_for_ws(parts.clone()).await;
+            match cookie {
+                Some(id) => {
+                    // println!("{:?}", id);
+                    let group_id = parts.uri.query();
+                    handle_group_chat(group_id.unwrap(), id, ws, db).await;
+                }
+                None => (),
+            }
+        })
+}
+
+struct Group {
+    id: Option<ObjectId>,
+    members: HashSet<String>,
+}
+
+async fn handle_group_chat(group_id: &str, id: String, ws: WebSocket, db: Arc<Db>) {
+    let res = db.find_group(group_id.to_string()).await;
+    match res {
+        Some(group_id) => {
+            let (mut sender, mut receiver) = ws.split();
+            tokio::spawn(async move {
+                loop {
+                    match receiver.next().await {
+                        Some(Ok(msg)) => {
+                            if let Ok(data) = msg.to_text() {
+                                if let Ok(message) = from_str::<Msg>(data) {}
+                            }
+                        }
+                        Some(Err(e)) => {
+                            println!("{}", e.to_string());
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+        None => {
+            println!("group Not found");
+            return;
+        }
+    }
 }

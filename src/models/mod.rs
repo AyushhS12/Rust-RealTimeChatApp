@@ -1,5 +1,5 @@
 
-use std::ops::{Deref};
+use std::{collections::HashSet, ops::Deref};
 
 use mongodb::bson::{oid::ObjectId , DateTime};
 use serde::{Deserialize, Serialize};
@@ -52,15 +52,28 @@ pub struct Chat{
     pub created_at: DateTime,
 }
 
+impl Chat {
+    pub fn new(users: Vec<ObjectId>) -> Chat{
+        Chat { id:None, users, messages: vec![], created_at: DateTime::now() }
+    }
+}
+
 #[derive(Debug,Serialize,Deserialize)]
 pub struct Group{
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    id:Option<ObjectId>,
-    users:Vec<ObjectId>,
+    pub id:Option<ObjectId>,
+    admins:HashSet<ObjectId>,
+    members:HashSet<ObjectId>,
     #[serde(default)]
-    messages:Vec<GroupMessage>,
+    messages:Vec<ObjectId>,
     //DateTime fields
     pub created_at: DateTime,
+}
+
+impl Group{
+    pub fn new(admins: HashSet<ObjectId>, members:HashSet<ObjectId>, messages:Vec<ObjectId>) -> Group{
+        Group { id: None, admins,members, messages, created_at:DateTime::now() }
+    }
 }
 
 #[derive(Debug,Clone,Serialize,Deserialize)]
@@ -106,6 +119,8 @@ pub struct GroupMessage{
     created_at: DateTime,
 }
 
+//Utility Models
+
 #[derive(Serialize, Deserialize,Debug)]
 pub struct LoginUser{
     pub email:String,
@@ -134,4 +149,13 @@ impl RequestHandler{
     pub fn new(from_id : Option<ObjectId>, to_id: Option<ObjectId>, action:String) -> RequestHandler{
         RequestHandler { from_id, to_id, action }
     }
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Members{
+    pub members: HashSet<String>
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatRequest{
+    pub second:Option<ObjectId>
 }

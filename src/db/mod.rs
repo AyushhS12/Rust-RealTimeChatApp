@@ -7,9 +7,11 @@ use mongodb::{
     options::FindOptions,
     Client, Collection, Cursor,
 };
+use std::collections::HashSet;
 use std::{env, str::FromStr, sync::Arc};
 pub trait IntoObjectId {
     fn into_object_id(self) -> ObjectId;
+    fn to_string(self) -> String;
 }
 
 #[derive(Clone)]
@@ -27,11 +29,17 @@ impl IntoObjectId for String {
     fn into_object_id(self) -> ObjectId {
         ObjectId::from_str(&self).unwrap()
     }
+    fn to_string(self) -> String {
+        self
+    }
 }
 
 impl IntoObjectId for ObjectId {
     fn into_object_id(self) -> ObjectId {
         self
+    }
+    fn to_string(self) -> String {
+        self.to_hex()
     }
 }
 
@@ -158,7 +166,40 @@ impl Db {
         let cursor = self.users.find(filter).with_options(find_options).await;
         cursor
     }
+    // ========== Chats Collection ==========
 
+    pub async fn create_chat<T:IntoObjectId>(&self,first:T,second:T) -> Result<InsertOneResult,String>{
+        let users = Vec::from([first.into_object_id(),second.into_object_id()]);
+        let filter = doc! {
+            "users":doc! {
+                "$all":users.clone()
+            }
+        };
+        let res = self.chats.find_one(filter).await;
+        match res {
+            Ok(Some(_)) => {
+                println!("Chat already exists");
+                Err("Chat already exists".to_string())
+            }
+            Ok(None) => {
+                let chat = Chat::new(users);
+                let res = self.chats.insert_one(chat).await;
+                match res {
+                    Ok(r)=>{
+                        Ok(r)
+                    }
+                    Err(e) => {
+                        Err(e.to_string())
+                    }
+                }
+            },
+            Err(e) => {
+                Err(e.to_string())
+            }
+        }
+    }
+
+    // ========== Friends Collection ==========
     pub async fn find_friend_request<Y>(
         &self,
         from_id: Option<Y>,
@@ -270,10 +311,10 @@ impl Db {
             None => Err(String::from("invalid request in handle friend request")),
         }
     }
-
+    // ========== Messages Collection ==========
     pub async fn add_message_to_db(&self, msg: Message) -> Option<InsertOneResult> {
-        if msg.from_id == msg.to_id{
-            return None
+        if msg.from_id == msg.to_id {
+            return None;
         }
         let res = self.messages.insert_one(&msg).await;
         match res {
@@ -297,6 +338,43 @@ impl Db {
         }
     }
 
+    //========== Group Collection ==========
+    pub async fn find_group(&self, group_id: impl IntoObjectId) -> Option<ObjectId> {
+        let id = group_id.into_object_id();
+        if let Ok(Some(group)) = self
+            .groups
+            .find_one(doc! {
+                "_id":id
+            })
+            .await
+        {
+            group.id
+        } else {
+            None
+        }
+    }
+
+    pub async fn create_group_chat<T: IntoObjectId>(
+        &self,
+        id: T,
+        members: HashSet<T>,
+    ) -> Option<InsertOneResult> {
+        let mut admin = HashSet::new();
+        admin.insert(id.into_object_id());
+        let mut users: HashSet<ObjectId> = HashSet::new();
+        for user in members {
+            users.insert(user.into_object_id());
+        }
+        let group = Group::new(admin,users, vec![]);
+        let res = self.groups.insert_one(group).await;
+        match res {
+            Ok(r) => Some(r),
+            Err(e) => {
+                println!("{}", e.to_string());
+                None
+            }
+        }
+    }
     // pub async fn users(self) -> Arc<Collection<User>> {
     //     self.users.clone()
     // }

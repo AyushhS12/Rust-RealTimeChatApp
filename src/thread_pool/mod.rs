@@ -1,3 +1,4 @@
+
 use std::{sync::{mpsc, Arc, Mutex}, thread::{self, JoinHandle}};
 
 pub struct ThreadPool{
@@ -11,12 +12,10 @@ pub struct Worker{
 }
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
-
 enum Message {
     NewJob(Job),
     Terminate,
 }
-
 impl ThreadPool{
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
