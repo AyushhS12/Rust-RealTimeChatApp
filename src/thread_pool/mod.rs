@@ -6,7 +6,7 @@ pub struct ThreadPool{
     sender:mpsc::Sender<Message>
 }
 
-pub struct Worker{
+pub struct Worker{  
     id:usize,
     thread:Option<JoinHandle<()>>
 }
