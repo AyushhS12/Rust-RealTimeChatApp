@@ -46,15 +46,13 @@ pub struct Chat{
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     id:Option<ObjectId>,
     users:Vec<ObjectId>,
-    #[serde(default)]
-    messages:Vec<Message>,
     //DateTime fields
     pub created_at: DateTime,
 }
 
 impl Chat {
     pub fn new(users: Vec<ObjectId>) -> Chat{
-        Chat { id:None, users, messages: vec![], created_at: DateTime::now() }
+        Chat { id:None, users, created_at: DateTime::now() }
     }
 }
 
@@ -63,21 +61,19 @@ pub struct Group{
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id:Option<ObjectId>,
     admins:HashSet<ObjectId>,
-    members:HashSet<ObjectId>,
-    #[serde(default)]
-    messages:Vec<ObjectId>,
+    pub members:HashSet<ObjectId>,
     //DateTime fields
     pub created_at: DateTime,
 }
 
 impl Group{
-    pub fn new(admins: HashSet<ObjectId>, members:HashSet<ObjectId>, messages:Vec<ObjectId>) -> Group{
-        Group { id: None, admins,members, messages, created_at:DateTime::now() }
+    pub fn new(admins: HashSet<ObjectId>, members:HashSet<ObjectId>) -> Group{
+        Group { id: None, admins,members, created_at:DateTime::now() }
     }
 }
 
 #[derive(Debug,Clone,Serialize,Deserialize)]
-pub struct Message{
+pub struct DirectMessage{
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id:Option<ObjectId>,
     pub chat_id:Option<ObjectId>,
@@ -109,11 +105,11 @@ impl Requests{
     }
 }
 
-#[derive(Debug,Serialize,Deserialize)]
+#[derive(Debug,Serialize,Deserialize,Clone)]
 pub struct GroupMessage{
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     id:Option<ObjectId>,
-    group_id:Option<ObjectId>,
+    pub group_id:Option<ObjectId>,
     from_id:Option<ObjectId>,
     //DateTime fields
     created_at: DateTime,
@@ -158,4 +154,12 @@ pub struct Members{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatRequest{
     pub second:Option<ObjectId>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type")] // <-- This is the magic!
+pub enum ChatMessage {
+    // The names of the variants will be used in the "type" field
+    Direct(DirectMessage),
+    Group(GroupMessage),
 }

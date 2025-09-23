@@ -1,28 +1,25 @@
 use axum::{
     body::Body,
     extract::{
-        ws::{Message, WebSocket}, State, WebSocketUpgrade
+        ws::{Message, WebSocket},
+        WebSocketUpgrade,
     },
     http::Request,
     response::IntoResponse,
-    Error, Extension,
+    Extension,
 };
-use futures::{SinkExt, StreamExt};
-use mongodb::bson::{self, oid::ObjectId};
-use serde_json::{from_str, to_string};
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use futures::{stream::SplitSink, SinkExt, StreamExt};
+use log::{error, info};
+use mongodb::results::InsertOneResult;
+use serde_json::{from_str, json, to_string};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::{
-    db::{Db, IntoObjectId}, models::Message as Msg, server::GroupManager, utils::extract_cookie_for_ws
-};
+use crate::{db::Db, models::ChatMessage, utils::extract_cookie_for_ws};
 #[derive(Clone)]
 pub struct Client {
-    sender: mpsc::UnboundedSender<Msg>,
-    active: bool,
+    sender: mpsc::UnboundedSender<ChatMessage>,
+    _active: bool,
 }
 
 pub struct Manager {
@@ -76,10 +73,10 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
     //splitting socket
     let (s, mut receiver) = ws.split();
     let sender = Arc::new(Mutex::new(s));
-    let (tx, mut rx) = mpsc::unbounded_channel::<Msg>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<ChatMessage>();
     let c = Client {
         sender: tx,
-        active: true,
+        _active: true,
     };
     manager.lock().await.insert(id.clone(), c);
 
@@ -92,49 +89,69 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
             match receiver.next().await {
                 Some(Ok(msg)) => {
                     if let Ok(data) = msg.to_text() {
-                        if let Ok(mut message) = from_str::<Msg>(data) {
-                            let client = {
-                                let mgr = manager_rx.lock().await;
-                                mgr.find(&message.to_id.clone().unwrap().to_hex()).cloned()
-                            };
-                            message.from_id = Some(id.clone().into_object_id());
-                            let mut sender = sender_rx.lock().await;
-                            match client {
-                                Some(c) => {
-                                    message.created_at = Some(bson::DateTime::now());
-                                    let r = c.sender.send(message.clone());
-                                    match r {
-                                        Ok(()) => {
-                                            let res =
-                                                db_rx.add_message_to_db(message.clone()).await;
-                                            println!("{:?}", res);
-                                            sender.send(Message::text("hello")).await.unwrap();
+                        if let Ok(message) = from_str::<ChatMessage>(data) {
+                            match message {
+                                ChatMessage::Direct(m) => {
+                                    let client = {
+                                        let mgr = manager_rx.lock().await;
+                                        mgr.find(&m.to_id.clone().unwrap().to_hex()).cloned()
+                                    };
+                                    let sender = sender_rx.clone();
+                                    match client {
+                                        Some(c) => {
+                                            c.sender.send(ChatMessage::Direct(m.clone())).unwrap();
+                                            let result = db_rx
+                                                .add_message_to_db(ChatMessage::Direct(m.clone()))
+                                                .await;
+                                            macth_result(sender, result).await;
                                         }
-                                        Err(e) => {
-                                            sender
-                                                .send(Message::text(String::from(
-                                                    "Message cannot be sent",
-                                                )))
-                                                .await
-                                                .unwrap();
-                                            println!("{}", e.to_string())
+                                        None => {
+                                            let result = db_rx
+                                                .add_message_to_db(ChatMessage::Direct(m.clone()))
+                                                .await;
+                                            macth_result(sender, result).await;
                                         }
                                     }
                                 }
-                                None => {
-                                    let res = db_rx.add_message_to_db(message).await;
-                                    println!("{:?}", res);
+                                ChatMessage::Group(m) => {
+                                    let group =
+                                        db_rx.find_group(m.group_id.unwrap()).await.unwrap();
+                                    let mgr = manager_rx.lock().await;
+                                    for member in group.members {
+                                        let sender = sender_rx.clone();
+                                        let user = mgr.find(&member.to_hex());
+                                        match user {
+                                            Some(u) => {
+                                                #[allow(warnings)]
+                                                u.sender.send(ChatMessage::Group(m.clone()));
+                                                let result = db_rx
+                                                    .add_message_to_db(ChatMessage::Group(
+                                                        m.clone(),
+                                                    ))
+                                                    .await;
+                                                macth_result(sender, result).await;
+                                            }
+                                            None => {
+                                                let result = db_rx
+                                                    .add_message_to_db(ChatMessage::Group(
+                                                        m.clone(),
+                                                    ))
+                                                    .await;
+                                                macth_result(sender, result).await;
+                                            }
+                                        }
+                                    }
                                 }
-                            }
+                            };
                         } else {
-                            println!("kuch aur dikkat hai");
+                            error!("kuch dikkat hai");
                         }
                     } else {
-                        println!("kuch dikkat hai");
+                        error!("kuch aur dikkat hai");
                     }
                 }
                 Some(Err(e)) => {
-                    println!("{:?}", e);
+                    error!("{}", e.to_string());
                 }
                 None => {
                     manager_rx.lock().await.remove(id);
@@ -155,59 +172,23 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
     });
 }
 
-pub async fn handle_group_connection(
-    ws: WebSocketUpgrade,
-    Extension(manager): Extension<Arc<Mutex<Manager>>>,
-    Extension(group_manager): Extension<GroupManager>,
-    Extension(db): Extension<Arc<Db>>,
-    req: Request<Body>,
-) -> impl IntoResponse {
-    ws.on_failed_upgrade(|err: Error| println!("{}", err.to_string()))
-        .on_upgrade(|ws| async move {
-            let (parts, _) = req.into_parts();
-            let cookie = extract_cookie_for_ws(parts.clone()).await;
-            match cookie {
-                Some(id) => {
-                    // println!("{:?}", id);
-                    let group_id = parts.uri.query();
-                    handle_group_chat(group_id.unwrap(), id, ws, db).await;
-                }
-                None => (),
-            }
-        })
-}
-
-struct Group {
-    id: Option<ObjectId>,
-    members: HashSet<String>,
-}
-
-async fn handle_group_chat(group_id: &str, id: String, ws: WebSocket, db: Arc<Db>) {
-    let res = db.find_group(group_id.to_string()).await;
-    match res {
-        Some(group_id) => {
-            let (mut sender, mut receiver) = ws.split();
-            tokio::spawn(async move {
-                loop {
-                    match receiver.next().await {
-                        Some(Ok(msg)) => {
-                            if let Ok(data) = msg.to_text() {
-                                if let Ok(message) = from_str::<Msg>(data) {}
-                            }
-                        }
-                        Some(Err(e)) => {
-                            println!("{}", e.to_string());
-                        }
-                        None => {
-                            break;
-                        }
-                    }
-                }
-            });
+async fn macth_result(
+    sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
+    result: Option<InsertOneResult>,
+) {
+    match result {
+        Some(r) => {
+            info!("{}", r.inserted_id);
         }
         None => {
-            println!("group Not found");
-            return;
+            error!("failed to add the message");
+            #[allow(warnings)]
+            sender.lock().await.send(Message::text(
+                json!({
+                    "err":"unable to send message"
+                })
+                .to_string(),
+            ));
         }
     }
 }

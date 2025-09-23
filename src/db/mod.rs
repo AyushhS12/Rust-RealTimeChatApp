@@ -1,5 +1,6 @@
 use crate::models::*;
 use futures::StreamExt;
+use log::error;
 use mongodb::error::Error;
 use mongodb::results::InsertOneResult;
 use mongodb::{
@@ -19,7 +20,7 @@ pub struct Db {
     users: Arc<Collection<User>>,
     friends: Arc<Collection<Friend>>,
     chats: Arc<Collection<Chat>>,
-    messages: Arc<Collection<Message>>,
+    messages: Arc<Collection<DirectMessage>>,
     groups: Arc<Collection<Group>>,
     requests: Arc<Collection<Requests>>,
     group_messages: Arc<Collection<GroupMessage>>,
@@ -55,7 +56,7 @@ impl Db {
                 let users = Arc::new(db.collection::<User>("users"));
                 let friends = Arc::new(db.collection::<Friend>("friends"));
                 let chats = Arc::new(db.collection::<Chat>("chats"));
-                let messages = Arc::new(db.collection::<Message>("messages"));
+                let messages = Arc::new(db.collection::<DirectMessage>("messages"));
                 let groups = Arc::new(db.collection::<Group>("groups"));
                 let requests = Arc::new(db.collection::<Requests>("requests"));
                 let group_messages = Arc::new(db.collection::<GroupMessage>("group_messages"));
@@ -168,8 +169,12 @@ impl Db {
     }
     // ========== Chats Collection ==========
 
-    pub async fn create_chat<T:IntoObjectId>(&self,first:T,second:T) -> Result<InsertOneResult,String>{
-        let users = Vec::from([first.into_object_id(),second.into_object_id()]);
+    pub async fn create_chat<T: IntoObjectId>(
+        &self,
+        first: T,
+        second: T,
+    ) -> Result<InsertOneResult, String> {
+        let users = Vec::from([first.into_object_id(), second.into_object_id()]);
         let filter = doc! {
             "users":doc! {
                 "$all":users.clone()
@@ -185,17 +190,11 @@ impl Db {
                 let chat = Chat::new(users);
                 let res = self.chats.insert_one(chat).await;
                 match res {
-                    Ok(r)=>{
-                        Ok(r)
-                    }
-                    Err(e) => {
-                        Err(e.to_string())
-                    }
+                    Ok(r) => Ok(r),
+                    Err(e) => Err(e.to_string()),
                 }
-            },
-            Err(e) => {
-                Err(e.to_string())
             }
+            Err(e) => Err(e.to_string()),
         }
     }
 
@@ -312,34 +311,50 @@ impl Db {
         }
     }
     // ========== Messages Collection ==========
-    pub async fn add_message_to_db(&self, msg: Message) -> Option<InsertOneResult> {
-        if msg.from_id == msg.to_id {
-            return None;
-        }
-        let res = self.messages.insert_one(&msg).await;
-        match res {
-            Ok(r) => {
-                let query = doc! {
-                    "_id":msg.chat_id,
-                };
-                let update = doc! {
-                    "$push":doc! {
-                        "messages":r.inserted_id.clone()
+    pub async fn add_message_to_db(&self, msg: ChatMessage) -> Option<InsertOneResult> {
+        match msg {
+            ChatMessage::Direct(msg) => {
+                if msg.from_id == msg.to_id {
+                    return None;
+                }
+                let res = self.messages.insert_one(&msg).await;
+                match res {
+                    Ok(r) => {
+                        let query = doc! {
+                            "_id":msg.chat_id,
+                        };
+                        let update = doc! {
+                            "$push":doc! {
+                                "messages":r.inserted_id.clone()
+                            }
+                        };
+                        let res = self.chats.update_one(query, update).await.unwrap();
+                        println!("{:?}", res);
+                        Some(r)
                     }
-                };
-                let res = self.chats.update_one(query, update).await.unwrap();
-                println!("{:?}", res);
-                Some(r)
-            }
-            Err(e) => {
-                println!("{}", e.to_string());
-                None
+                    Err(e) => {
+                        println!("{}", e.to_string());
+                        None
+                    }
+                }
+            },
+            ChatMessage::Group(m) => {
+                let res = self.group_messages.insert_one(m).await;
+                match res {
+                    Ok(r) => {
+                        Some(r)
+                    }
+                    Err(e) => {
+                        error!("{}",e.to_string());
+                        None
+                    }
+                }
             }
         }
     }
 
     //========== Group Collection ==========
-    pub async fn find_group(&self, group_id: impl IntoObjectId) -> Option<ObjectId> {
+    pub async fn find_group(&self, group_id: impl IntoObjectId) -> Option<Group> {
         let id = group_id.into_object_id();
         if let Ok(Some(group)) = self
             .groups
@@ -348,7 +363,7 @@ impl Db {
             })
             .await
         {
-            group.id
+            Some(group)
         } else {
             None
         }
@@ -365,7 +380,7 @@ impl Db {
         for user in members {
             users.insert(user.into_object_id());
         }
-        let group = Group::new(admin,users, vec![]);
+        let group = Group::new(admin, users);
         let res = self.groups.insert_one(group).await;
         match res {
             Ok(r) => Some(r),

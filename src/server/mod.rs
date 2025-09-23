@@ -9,14 +9,15 @@ use crate::{db::Db, middleware::auth_middleware, routes::{chat::{Client, Manager
 pub struct Server {
     addr: &'static str,
     db:Arc<Db>,
-    manager:Arc<Mutex<Manager>>
+    manager:Arc<Mutex<Manager>>,
+    group_man:GroupManager
 }
 
 pub type GroupManager = Arc<HashMap<ObjectId, HashMap<ObjectId, Client>>>;
 
 impl Server {
     pub async fn new(addr: &'static str) -> Self {
-        Server { addr,db:Arc::new(Db::init().await.unwrap()) , manager: Arc::new(Mutex::new(Manager::new()))}
+        Server { addr,db:Arc::new(Db::init().await.unwrap()) , manager: Arc::new(Mutex::new(Manager::new())), group_man:GroupManager::default()}
     }
     pub async fn listen(self) {
         let listener = TcpListener::bind(self.addr).await.unwrap();
@@ -29,7 +30,7 @@ impl Server {
         let mut router = Router::new();
         router = router.nest("/api", handle_api_routes());
         router = router.nest("/create", handle_create_routes());
-        router = router.nest("/chat", handle_chat_routes()).layer(Extension(self.manager.clone())).layer(Extension(GroupManager::default()));
+        router = router.nest("/chat", handle_chat_routes()).layer(Extension(self.manager.clone())).layer(Extension(self.group_man.clone()));
         router = router.nest("/user", handle_user_routes()).layer(middleware::from_fn_with_state(self.db, auth_middleware));
         router = router.nest("/auth", handle_auth_routes());
         router

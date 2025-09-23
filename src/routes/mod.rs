@@ -1,7 +1,7 @@
 use axum::{routing::{get, post}, Json, Router};
 use serde_json::json;
 
-use crate::{routes::group::handle_chat_creation, server::GroupManager};
+use crate::{routes::group::handle_chat_creation};
 mod auth;
 mod user;
 mod api;
@@ -36,8 +36,7 @@ pub fn handle_user_routes() -> Router {
 // #[axum::debug_handler]
 pub fn handle_chat_routes() -> Router{
     let router = Router::new()
-        .route("/", get(chat::handle_websocket))
-        .route("/group", get(chat::handle_group_connection));
+        .route("/", get(chat::handle_websocket));
     router
 }
 

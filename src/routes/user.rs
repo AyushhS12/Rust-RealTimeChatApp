@@ -122,7 +122,7 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
     }
 }
 
-pub async fn handle_friend_request(
+pub async fn _handle_friend_request(
     Extension(db): Extension<Arc<Db>>,
     req: Request<Body>,
 ) -> impl IntoResponse {
