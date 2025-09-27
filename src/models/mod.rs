@@ -134,18 +134,30 @@ pub struct FriendReq{
     pub to_id:Option<ObjectId>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RequestHandler{
-    pub from_id: Option<ObjectId>,
-    pub to_id:Option<ObjectId>,
-    pub action:String
-}
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct RequestHandler{
+//     pub from_id: Option<ObjectId>,
+//     pub to_id:Option<ObjectId>
+// }
 
-impl RequestHandler{
-    pub fn new(from_id : Option<ObjectId>, to_id: Option<ObjectId>, action:String) -> RequestHandler{
-        RequestHandler { from_id, to_id, action }
+// impl RequestHandler{
+//     pub fn new(from_id : Option<ObjectId>, to_id: Option<ObjectId>) -> RequestHandler{
+//         RequestHandler { from_id, to_id}
+//     }
+// }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "action")]
+#[serde(rename_all = "lowercase")]
+pub enum FriendRequest {
+    Accept{
+        to_id:String
+    },
+    Reject{
+        to_id:String
     }
 }
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Members{
     pub members: HashSet<String>
@@ -163,3 +175,29 @@ pub enum ChatMessage {
     Direct(DirectMessage),
     Group(GroupMessage),
 }
+
+
+// Error Handling Shenanigans
+#[derive(Debug)]
+pub struct MyError{
+    error:String,
+    location:String
+}
+impl MyError{
+    pub fn new<T: ToString>(error: T, location:T) -> MyError{
+        MyError { error:error.to_string(),location:location.to_string() }
+    }
+    #[allow(dead_code)]
+    pub fn into_error(self) -> String{
+        self.error
+    }
+    pub fn error(&self) -> &str{
+        &self.error
+    }
+}
+impl std::fmt::Display for MyError{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"[error : {} , location: {}]", self.error,self.location)
+    }
+}
+impl std::error::Error for MyError{}

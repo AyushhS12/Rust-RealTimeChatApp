@@ -70,20 +70,24 @@ pub async fn handle_websocket(
 
 async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db: Arc<Db>) {
     println!("Websocket connection established");
-    //splitting socket
+    // ========== Splitting socket ==========
     let (s, mut receiver) = ws.split();
+    // For sharing sender concurrently ==========
     let sender = Arc::new(Mutex::new(s));
+    // ========== Local channels to transfer data among different threads
     let (tx, mut rx) = mpsc::unbounded_channel::<ChatMessage>();
+    // ========== Adding client to the map ========== ==========
     let c = Client {
         sender: tx,
         _active: true,
     };
     manager.lock().await.insert(id.clone(), c);
-
+    // Cloning DB
     let db_rx = Arc::clone(&db);
     let manager_rx = Arc::clone(&manager);
     let sender_rx = Arc::clone(&sender);
 
+    // ========== Write loop ==========
     tokio::spawn(async move {
         loop {
             match receiver.next().await {
@@ -160,6 +164,8 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
             }
         }
     });
+
+    // ========== Readloop ==========
 
     tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {

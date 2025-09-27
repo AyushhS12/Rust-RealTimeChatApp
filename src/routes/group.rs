@@ -1,55 +1,92 @@
-use std::{sync::Arc, usize};
+use std::usize;
 
 use axum::{
-    body::{to_bytes, Body}, extract::Request, http::StatusCode, response::IntoResponse, Extension, Json
+    body::{to_bytes, Body},
+    http::{Request, StatusCode},
+    response::IntoResponse,
+    Extension, Json,
 };
-use log::{error};
-use serde_json::{from_slice, from_str, json};
+use log::error;
+use mongodb::bson::{from_slice_utf8_lossy};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
-use crate::{db::Db, models::{ChatRequest, Members}, utils::extract_cookie};
+use crate::{db::Db, utils::extract_cookie};
 
-pub async fn handle_group_creation(
-    Extension(db): Extension<Arc<Db>>,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "action")]
+enum HandleMember {
+    #[serde(rename = "add")]
+    Add(AddMember),
+    #[serde(rename = "remove")]
+    Remove(RemoveMember),
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct AddMember {
+    group_id: String,
+    user_ids: Vec<String>,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct RemoveMember {
+    group_id: String,
+    user_ids: Vec<String>,
+}
+
+pub async fn add_or_remove_members(
+    Extension(db): Extension<Db>,
     req: Request<Body>,
 ) -> impl IntoResponse {
     let (parts, body) = req.into_parts();
     let id = extract_cookie(parts).await.unwrap().sub;
     let bytes = to_bytes(body, usize::MAX).await.unwrap();
-    let data = from_slice::<Members>(&bytes).unwrap();
-    let res = db.create_group_chat(id, data.members).await;
-    match res {
-        Some(r) => Json(json!({
-            "group_id":r.inserted_id,
-            "success":true
-        })),
-        None => {
-            error!("unable to create group");
-            Json(json!({
-                "success":false
-            }))
+    let action = from_slice_utf8_lossy::<HandleMember>(&bytes);
+    match action {
+        Ok(HandleMember::Add(r)) => {
+            let res = db
+                .add_or_remove_members(id, r.group_id, r.user_ids, "add")
+                .await;
+            match res {
+                Ok(_) => (
+                    StatusCode::OK,
+                    Json(json!({
+                        "success":true
+                    })),
+                ),
+                Err(e) => (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "err":e.error()
+                    })),
+                ),
+            }
         }
-    }
-}
-
-pub async fn handle_chat_creation(Extension(db): Extension<Arc<Db>>,req: Request<Body>) -> impl IntoResponse{
-    let (parts, body) = req.into_parts();
-    let id = extract_cookie(parts).await.unwrap().sub;
-    let bytes = to_bytes(body, usize::MAX).await.unwrap();
-    let s = String::from_utf8_lossy(&bytes);
-    let second = from_str::<ChatRequest>(&s).unwrap();
-    let chat = db.create_chat(id, second.second.unwrap().to_hex()).await;
-    match chat {
-        Ok(r) => {
-            (StatusCode::OK,Json(json!({
-                "id":r.inserted_id,
-                "success":true
-            })))
+        Ok(HandleMember::Remove(r)) => {
+            let res = db
+                .add_or_remove_members(id, r.group_id, r.user_ids, "remove")
+                .await;
+            match res {
+                Ok(_) => (
+                    StatusCode::OK,
+                    Json(json!({
+                        "success":true
+                    })),
+                ),
+                Err(e) => (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "err":e.error()
+                    })),
+                ),
+            }
         }
         Err(e) => {
             error!("{}", e.to_string());
-            (StatusCode::BAD_REQUEST, Json(json!({
-                "err":"inavlid request body"
-            })))
+            (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "err":e.to_string()
+                })),
+            )
         }
     }
 }

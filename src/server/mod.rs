@@ -30,6 +30,7 @@ impl Server {
         let mut router = Router::new();
         router = router.nest("/api", handle_api_routes());
         router = router.nest("/create", handle_create_routes());
+        router = router.nest("/group", handle_group_routes());
         router = router.nest("/chat", handle_chat_routes()).layer(Extension(self.manager.clone())).layer(Extension(self.group_man.clone()));
         router = router.nest("/user", handle_user_routes()).layer(middleware::from_fn_with_state(self.db, auth_middleware));
         router = router.nest("/auth", handle_auth_routes());

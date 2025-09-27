@@ -11,7 +11,7 @@ use std::{sync::Arc, usize};
 
 use crate::{
     db::{Db, IntoObjectId},
-    models::{FriendReq, RequestHandler, Requests, User},
+    models::{FriendReq, Requests, User},
     utils::{extract_cookie, extract_cookie_into_user},
 };
 
@@ -122,27 +122,27 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
     }
 }
 
-pub async fn _handle_friend_request(
-    Extension(db): Extension<Arc<Db>>,
-    req: Request<Body>,
-) -> impl IntoResponse {
-    let (parts , body) = req.into_parts();
-    let claims = extract_cookie(parts).await.unwrap();
-    let data = to_bytes(body, usize::MAX).await.unwrap();
-    let mut request = from_str::<RequestHandler>(String::from_utf8_lossy(&data).into_owned().as_str()).unwrap();
-    request.from_id = Some(claims.sub.into_object_id());
-    let res = db.handle_friend_request(request).await;
-    match res {
-        Ok(()) => {
-            (StatusCode::OK, Json(json!({
-                "success":true
-            })))
-        },
-        Err(e)=> {
-            println!("{}",e);
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
-                "err":e
-            })))
-        }
-    }
-}
+// pub async fn _handle_friend_request(
+//     Extension(db): Extension<Arc<Db>>,
+//     req: Request<Body>,
+// ) -> impl IntoResponse {
+//     let (parts , body) = req.into_parts();
+//     let claims = extract_cookie(parts).await.unwrap();
+//     let data = to_bytes(body, usize::MAX).await.unwrap();
+//     let mut request = from_str::<RequestHandler>(String::from_utf8_lossy(&data).into_owned().as_str()).unwrap();
+//     request.from_id = Some(claims.sub.into_object_id());
+//     let res = db.handle_friend_request(request).await;
+//     match res {
+//         Ok(()) => {
+//             (StatusCode::OK, Json(json!({
+//                 "success":true
+//             })))
+//         },
+//         Err(e)=> {
+//             println!("{}",e);
+//             (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({
+//                 "err":e
+//             })))
+//         }
+//     }
+// }

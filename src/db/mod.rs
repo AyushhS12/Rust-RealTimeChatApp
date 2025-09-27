@@ -1,6 +1,7 @@
 use crate::models::*;
 use futures::StreamExt;
 use log::error;
+use mongodb::bson::Document;
 use mongodb::error::Error;
 use mongodb::results::InsertOneResult;
 use mongodb::{
@@ -198,7 +199,7 @@ impl Db {
         }
     }
 
-    // ========== Friends Collection ==========
+    // ========== Requests Collection ==========
     pub async fn find_friend_request<Y>(
         &self,
         from_id: Option<Y>,
@@ -260,14 +261,20 @@ impl Db {
         }
     }
 
-    pub async fn handle_friend_request(&self, request: RequestHandler) -> Result<(), String> {
-        let res = self
-            .find_friend_request(request.from_id, request.to_id)
-            .await;
+    pub async fn handle_friend_request<Y>(
+        &self,
+        from_id: Option<Y>,
+        to_id: Option<Y>,
+        action: &str,
+    ) -> Result<(), MyError>
+    where
+        Y: IntoObjectId,
+    {
+        let res = self.find_friend_request(from_id, to_id).await;
         match res {
             Some(req) => {
                 if req.valid_status() {
-                    match request.action.as_str() {
+                    match action {
                         "accept" => {
                             let doc = Friend::new(req.from_id, req.to_id);
                             let res = self.friends.insert_one(doc).await;
@@ -278,7 +285,10 @@ impl Db {
                                 }
                                 Err(e) => {
                                     println!("{}", e.to_string());
-                                    Err(e.to_string())
+                                    Err(MyError::new(
+                                        e.to_string(),
+                                        String::from("db : handle request fucntion 1"),
+                                    ))
                                 }
                             }
                         }
@@ -297,17 +307,29 @@ impl Db {
                                 }
                                 Err(e) => {
                                     println!("{}", e.to_string());
-                                    Err(e.to_string())
+                                    Err(MyError::new(
+                                        e.to_string(),
+                                        "db : handle friend request 2".to_string(),
+                                    ))
                                 }
                             }
                         }
-                        _ => Err(String::from("inavlid request action")),
+                        _ => Err(MyError::new(
+                            "inavlid request action",
+                            "db : handle friend request",
+                        )),
                     }
                 } else {
-                    Err(String::from("invalid request status"))
+                    Err(MyError::new(
+                        "inavlid request status",
+                        "db : handle friend request",
+                    ))
                 }
             }
-            None => Err(String::from("invalid request in handle friend request")),
+            None => Err(MyError::new(
+                "inavlid request in handle request function",
+                "db : handle friend request",
+            )),
         }
     }
     // ========== Messages Collection ==========
@@ -337,15 +359,13 @@ impl Db {
                         None
                     }
                 }
-            },
+            }
             ChatMessage::Group(m) => {
                 let res = self.group_messages.insert_one(m).await;
                 match res {
-                    Ok(r) => {
-                        Some(r)
-                    }
+                    Ok(r) => Some(r),
                     Err(e) => {
-                        error!("{}",e.to_string());
+                        error!("{}", e.to_string());
                         None
                     }
                 }
@@ -388,6 +408,84 @@ impl Db {
                 println!("{}", e.to_string());
                 None
             }
+        }
+    }
+
+    pub async fn check_admin<T>(&self, admin: T, group_id: ObjectId) -> bool
+    where
+        T: IntoObjectId,
+    {
+        let filter = doc! {
+            "$and":[
+                {"_id":group_id.into_object_id()},
+                {"admins": {
+                    "$in":[admin.into_object_id()]
+                }}
+            ]
+        };
+        let res = self.groups.find_one(filter).await;
+        match res {
+            Ok(_) => true,
+            Err(e) => {
+                error!("{}", e.to_string());
+                false
+            }
+        }
+    }
+    pub async fn add_or_remove_members<T>(
+        &self,
+        admin: T,
+        group_id: T,
+        members: Vec<String>,
+        action: &str,
+    ) -> Result<(), MyError>
+    where
+        T: IntoObjectId,
+    {
+        let grp_id = group_id.into_object_id();
+        if !self.check_admin(admin, grp_id.clone()).await {
+            return Err(MyError::new(
+                "only admin are allowed to add or remove members",
+                "db : add or remove member function",
+            ));
+        }
+        let filter = doc! {
+            "_id":grp_id.into_object_id()
+        };
+        let mut users = vec![];
+        for user in members {
+            users.push(user.into_object_id());
+        }
+        let update: Document;
+        match action {
+            "add" => {
+                update = doc! {
+                    "$push":{
+                        "members":users
+                    }
+                };
+            }
+            "remove" => {
+                update = doc! {
+                    "$pull":{
+                        "members":users
+                    }
+                };
+            }
+            _ => {
+                return Err(MyError::new(
+                    "invalid actions, try again",
+                    "db : add or remove member function",
+                ))
+            }
+        }
+        let res = self.groups.find_one_and_update(filter, update).await;
+        match res {
+            Ok(_) => Ok(()),
+            Err(e) => Err(MyError::new(
+                e.to_string(),
+                "db : add or remove member".to_string(),
+            )),
         }
     }
     // pub async fn users(self) -> Arc<Collection<User>> {
