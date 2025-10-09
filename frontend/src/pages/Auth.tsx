@@ -3,16 +3,13 @@ import toast from "react-hot-toast";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-// Removed the import for AuthContext as it was causing an error
-// and is not used in this self-contained version of the component.
-
+const BaseUrl = import.meta.env.BASE_URL;
 function Auth() {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({ name: "", username: "", email: "", password: "" });
   // Removed the useContext hook call
   const navigate = useNavigate();
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [e.target.id]: e.target.value });
 
@@ -31,7 +28,7 @@ function Auth() {
     try {
       if (isLoginMode) {
         const res = await axios.post(
-          "http://localhost:7878/auth/login",
+          BaseUrl + "/auth/login",
           { email: form.email, password: form.password },
           { withCredentials: true }
         );
@@ -45,7 +42,7 @@ function Auth() {
           toast.error(res.data.message || "Invalid credentials");
         }
       } else {
-        await axios.post("http://localhost:7878/auth/signup", form, { withCredentials: true });
+        await axios.post(BaseUrl + "/auth/signup", form, { withCredentials: true });
         toast.success("Signup successful! Please login.");
         setIsLoginMode(true);
       }

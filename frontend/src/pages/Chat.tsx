@@ -28,7 +28,7 @@ interface Conversation {
   last_message: Message;
 }
 
-
+const BaseUrl = import.meta.env.BASE_URL
 function Chat() {
   const logout = useLogout();
   const authGuard = useAuth();
@@ -42,7 +42,7 @@ function Chat() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    axios.get("http://localhost:7878/api/get_my_id").then((val) => {
+    axios.get(BaseUrl + "/api/get_my_id").then((val) => {
       setid(val.data)
     }).catch((e) => {
       console.error(e)
@@ -115,7 +115,7 @@ function Chat() {
   // 🚀 Fetch chats + connect
   const fetchChatsAndConnect = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:7878/api/chat/get_chats", {
+      const res = await axios.get(BaseUrl + "/api/chat/get_chats", {
         withCredentials: true,
       });
       setChats(res.data.chats || []);
