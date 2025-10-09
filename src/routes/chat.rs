@@ -9,13 +9,13 @@ use axum::{
     Extension,
 };
 use futures::{stream::SplitSink, SinkExt, StreamExt};
-use log::{error, info};
+use log::{debug, error, info};
 use mongodb::results::InsertOneResult;
 use serde_json::{from_str, json, to_string};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::{db::Db, models::ChatMessage, utils::extract_cookie_for_ws};
+use crate::{db::{Db, IntoObjectId}, models::ChatMessage, utils::extract_cookie_for_ws};
 #[derive(Clone)]
 pub struct Client {
     sender: mpsc::UnboundedSender<ChatMessage>,
@@ -53,14 +53,14 @@ pub async fn handle_websocket(
     req: Request<Body>,
 ) -> impl IntoResponse {
     ws.on_failed_upgrade(|err: axum::Error| {
-        println!("error :{}", err.to_string());
+        error!("error :{}", err.to_string());
     })
     .on_upgrade(|ws| async move {
         let (parts, _) = req.into_parts();
         let cookie = extract_cookie_for_ws(parts).await;
         match cookie {
             Some(id) => {
-                // println!("{:?}", id);
+                info!("{}", id);
                 handle_chat(manager.clone(), id, ws, db).await;
             }
             None => (),
@@ -69,7 +69,7 @@ pub async fn handle_websocket(
 }
 
 async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db: Arc<Db>) {
-    println!("Websocket connection established");
+    debug!("Websocket connection established");
     // ========== Splitting socket ==========
     let (s, mut receiver) = ws.split();
     // For sharing sender concurrently ==========
@@ -86,6 +86,17 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
     let db_rx = Arc::clone(&db);
     let manager_rx = Arc::clone(&manager);
     let sender_rx = Arc::clone(&sender);
+    // ========== Readloop ==========
+
+    let readloop = tokio::spawn(async move {
+        while let Some(msg) = rx.recv().await {
+            let mut sender = sender.lock().await;
+            sender
+                .send(Message::text(to_string(&msg).unwrap()))
+                .await
+                .unwrap();
+        }
+    });
 
     // ========== Write loop ==========
     tokio::spawn(async move {
@@ -95,29 +106,40 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                     if let Ok(data) = msg.to_text() {
                         if let Ok(message) = from_str::<ChatMessage>(data) {
                             match message {
-                                ChatMessage::Direct(m) => {
+                                ChatMessage::Direct(mut m) => {
+                                    if !db.chat_exists(m.chat_id.clone().unwrap()).await {
+                                        error!("Chat does not exists");
+                                        return;
+                                    }
                                     let client = {
                                         let mgr = manager_rx.lock().await;
                                         mgr.find(&m.to_id.clone().unwrap().to_hex()).cloned()
                                     };
+                                    m.from_id = Some(id.clone().into_object_id());
                                     let sender = sender_rx.clone();
                                     match client {
                                         Some(c) => {
+                                            debug!("user found");
                                             c.sender.send(ChatMessage::Direct(m.clone())).unwrap();
                                             let result = db_rx
                                                 .add_message_to_db(ChatMessage::Direct(m.clone()))
                                                 .await;
-                                            macth_result(sender, result).await;
+                                            match_result(sender, result).await;
                                         }
                                         None => {
                                             let result = db_rx
                                                 .add_message_to_db(ChatMessage::Direct(m.clone()))
                                                 .await;
-                                            macth_result(sender, result).await;
+                                            match_result(sender, result).await;
                                         }
                                     }
                                 }
-                                ChatMessage::Group(m) => {
+                                ChatMessage::Group(mut m) => {
+                                    if !db.group_exists(m.group_id.clone().unwrap()).await {
+                                        error!("Group does not exists");
+                                        return;
+                                    }
+                                    m.from_id = Some(id.clone().into_object_id());
                                     let group =
                                         db_rx.find_group(m.group_id.unwrap()).await.unwrap();
                                     let mgr = manager_rx.lock().await;
@@ -133,7 +155,7 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                                                         m.clone(),
                                                     ))
                                                     .await;
-                                                macth_result(sender, result).await;
+                                                match_result(sender, result).await;
                                             }
                                             None => {
                                                 let result = db_rx
@@ -141,7 +163,7 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                                                         m.clone(),
                                                     ))
                                                     .await;
-                                                macth_result(sender, result).await;
+                                                match_result(sender, result).await;
                                             }
                                         }
                                     }
@@ -158,33 +180,23 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                     error!("{}", e.to_string());
                 }
                 None => {
+                    info!("Shutting down readloop for {}", id);
                     manager_rx.lock().await.remove(id);
+                    readloop.abort();
                     break;
                 }
             }
         }
     });
-
-    // ========== Readloop ==========
-
-    tokio::spawn(async move {
-        while let Some(msg) = rx.recv().await {
-            let mut sender = sender.lock().await;
-            sender
-                .send(Message::text(to_string(&msg).unwrap()))
-                .await
-                .unwrap();
-        }
-    });
 }
 
-async fn macth_result(
+async fn match_result(
     sender: Arc<Mutex<SplitSink<WebSocket, Message>>>,
     result: Option<InsertOneResult>,
 ) {
     match result {
         Some(r) => {
-            info!("{}", r.inserted_id);
+            info!("database response : [{}]", r.inserted_id);
         }
         None => {
             error!("failed to add the message");

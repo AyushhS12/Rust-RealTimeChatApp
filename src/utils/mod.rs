@@ -1,7 +1,8 @@
 use std::env;
 
-use axum::{body::Body, extract::Request, http::request::Parts};
+use axum::{http::request::Parts};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use log::error;
 
 use crate::{
     db::Db,
@@ -20,19 +21,19 @@ pub async fn extract_cookie_for_ws(parts: Parts) -> Option<String> {
                     match claims {
                         Ok(c) => Some(c.sub),
                         Err(e) => {
-                            println!("{e}");
+                            error!("{}",e);
                             None
                         }
                     }
                 }
                 None => {
-                    println!("jwt is going crazy 1");
+                    error!("jwt is going crazy 1");
                     None
                 }
             }
         }
         None => {
-            println!("cookie invalid");
+            error!("cookie invalid");
             None
         }
     }
@@ -59,9 +60,8 @@ pub async fn extract_cookie(parts: Parts) -> Result<Claims, String> {
     }
 }
 
-pub async fn extract_cookie_into_user(req: Request<Body>, db: &Db) -> Result<Option<User>, String> {
-    let (parts, _) = req.into_parts();
-    let claims = extract_cookie(parts).await;
+pub async fn extract_cookie_into_user(parts: &Parts, db: &Db) -> Result<Option<User>, String> {
+    let claims = extract_cookie(parts.clone()).await;
     match claims {
         Ok(claims) => Ok(db.find_user_with_id(claims.sub).await),
         Err(e) => Err(e),
@@ -80,3 +80,6 @@ pub fn validate_jwt(token: &str) -> Result<Claims, String> {
         Err(e) => Err(e.to_string()),
     }
 }
+
+
+

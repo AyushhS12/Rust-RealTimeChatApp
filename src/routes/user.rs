@@ -1,3 +1,8 @@
+use crate::{
+    db::{Db, IntoObjectId},
+    models::{FriendReq, Otp, Requests, User},
+    utils::{extract_cookie, extract_cookie_into_user},
+};
 use axum::{
     body::{to_bytes, Body},
     extract::Request,
@@ -6,23 +11,18 @@ use axum::{
     Extension, Json,
 };
 use futures::stream::StreamExt;
+use log::{error, info};
 use serde_json::{from_str, json};
 use std::{sync::Arc, usize};
 
-use crate::{
-    db::{Db, IntoObjectId},
-    models::{FriendReq, Requests, User},
-    utils::{extract_cookie, extract_cookie_into_user},
-};
-
 pub async fn profile(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> impl IntoResponse {
-    let res = extract_cookie_into_user(req, &db).await;
+    let res = extract_cookie_into_user(&req.into_parts().0, &db).await;
     match res {
         Ok(u) => match u {
             Some(mut user) => (
                 StatusCode::OK,
                 Json(json!({
-                    "user":user.protect_pass()
+                    "user":user.hide_pass()
                 })),
             ),
             None => (
@@ -92,8 +92,8 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
     let req = from_str::<FriendReq>(&data);
     match req {
         Ok(r) => {
-            let mut request = Requests::new_from_friend_req(r);
-            request.from_id = Some(extract_cookie(parts).await.unwrap().sub.into_object_id());
+            let from_id = Some(extract_cookie(parts).await.unwrap().sub.into_object_id());
+            let request = Requests::new_from_friend_req(r, from_id);
             let res = db.add_friend_request(request).await;
             match res {
                 Ok(id) => (
@@ -105,7 +105,7 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
                 Err(e) => (
                     StatusCode::NOT_ACCEPTABLE,
                     Json(json!({
-                        "err":e
+                        "err":e.error()
                     })),
                 ),
             }
@@ -118,6 +118,33 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
                         "err":"invalid request"
                 })),
             )
+        }
+    }
+}
+
+// Only auth function which is in users routes because of my poor memory
+
+pub async fn verify(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> impl IntoResponse {
+    let (_, body) = req.into_parts();
+    let bytes = to_bytes(body, usize::MAX).await.unwrap();
+    let data = String::from_utf8_lossy(&bytes);
+    let otp = from_str::<Otp>(&data).unwrap();
+    let res = db.update_verification_for_user(otp).await;
+    match res {
+        Ok(msg) => {
+            info!("{}",msg);
+            Json(json!({
+                "success":true,
+                "message":"user verified successfully"
+            }))
+        }
+        Err(e) => {
+            error!("{}",e);
+            let err = format!("cannot verify user , {}", e.error());
+            Json(json!({
+                "success":false,
+                "err":err
+            }))
         }
     }
 }
