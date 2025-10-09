@@ -1,5 +1,7 @@
 use std::env;
 
+use log::info;
+
 use crate::server::Server;
 mod server;
 mod routes;
@@ -22,5 +24,6 @@ async fn main() {
             String::from("http://localhost:7878")
         }
     };
+    info!("listening on port : {}",address);
     let _ = Server::new(address).await.listen().await;
 }
