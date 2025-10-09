@@ -41,12 +41,11 @@ function Chat() {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  // console.log(recvMsg)
   useEffect(() => {
     axios.get("http://localhost:7878/api/get_my_id").then((val) => {
       setid(val.data)
     }).catch((e) => {
-      console.log(e)
+      console.error(e)
     })
   },[])
   const temp = messages[selectedChatId]
@@ -63,12 +62,9 @@ function Chat() {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
-
-    console.log("🔌 Connecting WebSocket...");
     const ws = new WebSocket("ws://localhost:7878/chat");
 
     ws.onopen = () => {
-      console.log("✅ WebSocket connected");
       reconnectAttempts.current = 0;
       setSocket(ws);
     };
@@ -87,8 +83,6 @@ function Chat() {
         if (reconnectAttempts.current < maxRetries) {
           const timeout = Math.min(1000 * 2 ** reconnectAttempts.current, 10000);
           reconnectAttempts.current += 1;
-
-          console.log(`🔁 Reconnecting in ${timeout / 1000}s...`);
           reconnectTimer.current = setTimeout(() => connect(), timeout);
         } else {
           console.error("🚫 Max reconnection attempts reached.");
@@ -99,7 +93,6 @@ function Chat() {
 
     ws.onmessage = (msg) => {
       try {
-        console.log(msg.data)
         const message: Message = JSON.parse(msg.data);
         const chatId = message.chat_id.$oid;
         setMessages((prev) => {
@@ -108,14 +101,8 @@ function Chat() {
             ...prev,
             [chatId]: [...(prev[chatId] || []), message],
           };
-
-          console.log(messages)
           return updated;
         });
-        // If it's the currently open chat, trigger a UI scroll or optional side effect
-        if (chatId === selectedChatIdRef.current) {
-          console.log("📩 Message received in active chat:", message.content);
-        }
       } catch (err) {
         console.error("Failed to parse incoming message:", err);
       }
@@ -123,7 +110,7 @@ function Chat() {
 
 
     setSocket(ws);
-  }, [messages]);
+  }, []);
 
   // 🚀 Fetch chats + connect
   const fetchChatsAndConnect = useCallback(async () => {
@@ -147,9 +134,7 @@ function Chat() {
         content: msg,
         chat_id
       };
-      // console.log(chat.id.$oid)
       if (socket && socket.readyState === WebSocket.OPEN) {
-        console.log(message);
         socket.send(JSON.stringify(message));
         const realMsg: Message = {
           from_id:id,
@@ -164,8 +149,6 @@ function Chat() {
             ...prev,
             [chat_id]: [...(prev[chat_id] || []), realMsg],
           };
-
-          console.log(messages)
           return updated;
         });
       } else {
@@ -173,7 +156,7 @@ function Chat() {
         connect();
       }
     },
-    [socket, connect,messages,id]
+    [socket, connect,id]
   );
 
   const fetchMessages = useCallback(async (chatId: string) => {

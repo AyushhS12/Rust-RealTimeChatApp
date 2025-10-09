@@ -15,7 +15,7 @@ export const useLogout = () => {
             });
         } catch (e) {
             setToken("logged out");
-            console.log(e);
+            console.error(e);
         } finally {
             setToken("");
             toast.success("Logged out successfully");

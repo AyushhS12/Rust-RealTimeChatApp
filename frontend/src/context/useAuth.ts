@@ -25,7 +25,7 @@ const useAuth = () => {
       }
       return true;
     } catch (err) {
-      console.log(err)
+      console.error(err)
       toast.error("Session expired, please login again");
       setToken("");
       navigate("/auth");
