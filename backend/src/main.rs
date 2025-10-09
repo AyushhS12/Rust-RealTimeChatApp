@@ -9,7 +9,7 @@ mod middleware;
 mod utils;
 #[tokio::main]
 async fn main() {
-    if env::var("ENV").unwrap() == "development".to_string() {
+    if env::var("ENV").unwrap() != "production".to_string() {
         dotenv::dotenv().unwrap();
     }
     env_logger::init();
