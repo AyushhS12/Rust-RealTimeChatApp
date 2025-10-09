@@ -2,3 +2,4 @@ target/
 .env
 src/thread_pool/
 tests
+Dockerfile
