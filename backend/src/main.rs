@@ -13,5 +13,14 @@ async fn main() {
         dotenv::dotenv().unwrap();
     }
     env_logger::init();
-    let _ = Server::new("127.0.0.1:7878").await.listen().await;
+    let address = match env::var("PORT") {
+        Ok(p) => {
+            format!("http://localhost:{}",p)
+        }
+        Err(e) => {
+            log::error!("{}",e);
+            String::from("http://localhost:7878")
+        }
+    };
+    let _ = Server::new(address).await.listen().await;
 }

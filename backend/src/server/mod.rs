@@ -15,7 +15,7 @@ use crate::{
 };
 
 pub struct Server {
-    addr: &'static str,
+    addr: String,
     db: Arc<Db>,
     manager: Arc<Mutex<Manager>>,
     group_man: GroupManager,
@@ -24,7 +24,7 @@ pub struct Server {
 pub type GroupManager = Arc<HashMap<ObjectId, HashMap<ObjectId, Client>>>;
 
 impl Server {
-    pub async fn new(addr: &'static str) -> Self {
+    pub async fn new(addr: String) -> Self {
         Server {
             addr,
             db: Arc::new(Db::init().await.unwrap()),
@@ -33,7 +33,7 @@ impl Server {
         }
     }
     pub async fn listen(self) {
-        let listener = TcpListener::bind(self.addr).await.unwrap();
+        let listener = TcpListener::bind(self.addr.clone()).await.unwrap();
         let db = self.db.clone();
         let allowed_origins = AllowOrigin::list(["http://localhost:5173".parse().unwrap()]);
 
