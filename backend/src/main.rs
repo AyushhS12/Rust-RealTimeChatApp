@@ -11,11 +11,19 @@ mod middleware;
 mod utils;
 #[tokio::main]
 async fn main() {
-    if env::var("ENV").unwrap() != "production".to_string() {
-        dotenv::dotenv().unwrap();
-    }
     env_logger::init();
-    let address = match env::var("PORT") {
+    match env::var("ENV") {
+        Ok(v) => {
+            if v == "development"{
+                dotenv::dotenv().unwrap();
+            }
+        }
+        Err(e) => {
+            log::error!("{}",e);
+            dotenv::dotenv().unwrap();
+        }
+    };
+    let address = match env::var("PORT") { 
         Ok(p) => {
             format!("http://localhost:{}",p)
         }
