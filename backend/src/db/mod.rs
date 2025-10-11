@@ -6,7 +6,7 @@ use mongodb::bson::Document;
 use mongodb::error::Error;
 use mongodb::results::InsertOneResult;
 use mongodb::{
-    bson::{self, doc, oid::ObjectId, Bson, DateTime},
+    bson::{doc, oid::ObjectId, Bson, DateTime},
     options::FindOptions,
     Client, Collection, Cursor,
 };
@@ -52,7 +52,7 @@ impl Db {
         let uri = env::var("DATABASE_URL").unwrap();
         let client = Client::with_uri_str(uri).await.unwrap();
         let db = client.database("rust");
-        let ping_res = db.run_command(bson::doc! {"ping":1}).await;
+        let ping_res = db.run_command(doc! {"ping":1}).await;
         match ping_res {
             Ok(doc) => {
                 debug!("{:?}", doc);
