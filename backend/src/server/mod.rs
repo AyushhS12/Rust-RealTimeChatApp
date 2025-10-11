@@ -35,7 +35,7 @@ impl Server {
     pub async fn listen(self) {
         let listener = TcpListener::bind(self.addr.clone()).await.unwrap();
         let db = self.db.clone();
-        let allowed_origins = AllowOrigin::list(["http://localhost:5173".parse().unwrap()]);
+        let allowed_origins = AllowOrigin::list(["http://localhost:5173".parse().unwrap(),"https://glooo-rust.vercel.app".parse().unwrap()]);
 
         let cors = CorsLayer::new()
             // 1. Allow the specific origin of your React app
