@@ -1,4 +1,4 @@
-use log::{info};
+use log::{error,info};
 use std::{env};
 
 use crate::server::Server;
@@ -33,8 +33,15 @@ async fn main() {
         }
     }
     env_logger::init();
-    let port = env::var("PORT").unwrap_or_else(|_|{"7878".to_string()});
-    let address = format!("localhost:{}",port);
-    info!("listening on port : {}", address);
+    let address = match env::var("PORT"){
+        Ok(port) => {
+            format!("0.0.0.0:{}",port)
+        }
+        Err(e) => {
+            error!("post not found defaulting to port 7878\nerror: {}",e);
+            format!("localhost:7878")
+        }
+    };
+    info!("listening on address : http://{}", address);
     let _ = Server::new(address).await.listen().await;
 }
