@@ -28,7 +28,7 @@ interface Conversation {
   last_message: Message;
 }
 
-const BaseUrl = import.meta.env.BASE_URL
+const BaseUrl = import.meta.env.VITE_BACKEND_URL;
 function Chat() {
   const logout = useLogout();
   const authGuard = useAuth();

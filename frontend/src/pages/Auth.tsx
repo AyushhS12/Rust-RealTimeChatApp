@@ -3,7 +3,7 @@ import toast from "react-hot-toast";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const BaseUrl = import.meta.env.BASE_URL;
+const BaseUrl = import.meta.env.VITE_BACKEND_URL;
 function Auth() {
   const [isLoginMode, setIsLoginMode] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
