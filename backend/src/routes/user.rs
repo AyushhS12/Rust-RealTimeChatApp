@@ -1,6 +1,6 @@
 use crate::{
     db::{Db, IntoObjectId},
-    models::{FriendReq, Otp, Requests, User},
+    models::{FriendReq,Requests, User},
     utils::{extract_cookie, extract_cookie_into_user},
 };
 use axum::{
@@ -11,7 +11,6 @@ use axum::{
     Extension, Json,
 };
 use futures::stream::StreamExt;
-use log::{error, info};
 use serde_json::{from_str, json};
 use std::{sync::Arc, usize};
 
@@ -124,30 +123,30 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
 
 // Only auth function which is in users routes because of my poor memory
 
-pub async fn verify(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> impl IntoResponse {
-    let (_, body) = req.into_parts();
-    let bytes = to_bytes(body, usize::MAX).await.unwrap();
-    let data = String::from_utf8_lossy(&bytes);
-    let otp = from_str::<Otp>(&data).unwrap();
-    let res = db.update_verification_for_user(otp).await;
-    match res {
-        Ok(msg) => {
-            info!("{}",msg);
-            Json(json!({
-                "success":true,
-                "message":"user verified successfully"
-            }))
-        }
-        Err(e) => {
-            error!("{}",e);
-            let err = format!("cannot verify user , {}", e.error());
-            Json(json!({
-                "success":false,
-                "err":err
-            }))
-        }
-    }
-}
+// pub async fn verify(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> impl IntoResponse {
+//     let (_, body) = req.into_parts();
+//     let bytes = to_bytes(body, usize::MAX).await.unwrap();
+//     let data = String::from_utf8_lossy(&bytes);
+//     let otp = from_str::<Otp>(&data).unwrap();
+//     let res = db.update_verification_for_user(otp).await;
+//     match res {
+//         Ok(msg) => {
+//             info!("{}",msg);
+//             Json(json!({
+//                 "success":true,
+//                 "message":"user verified successfully"
+//             }))
+//         }
+//         Err(e) => {
+//             error!("{}",e);
+//             let err = format!("cannot verify user , {}", e.error());
+//             Json(json!({
+//                 "success":false,
+//                 "err":err
+//             }))
+//         }
+//     }
+// }
 
 // pub async fn _handle_friend_request(
 //     Extension(db): Extension<Arc<Db>>,

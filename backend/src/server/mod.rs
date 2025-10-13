@@ -1,8 +1,8 @@
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{http::{header, Method}, middleware, Extension, Router};
 use mongodb::bson::oid::ObjectId;
-use tokio::{net::TcpListener, sync::Mutex, time};
+use tokio::{net::TcpListener, sync::Mutex};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::{
@@ -51,22 +51,22 @@ impl Server {
             .await
             .layer(Extension(db.clone()))
             .layer(cors);
-        tokio::spawn(async move {
-            let mut interval = time::interval(Duration::from_secs(10 * 60));
-            log::info!("OTP cleanup task started. Begin cleanup again in 10 minutes");
-            loop {
-                interval.tick().await;
-                let db = db.clone();
-                match db.check_and_clear_otps().await {
-                    Ok(s) => {
-                        log::info!("========================================================================\n{}", s);
-                    }
-                    Err(e) => {
-                        log::error!("{}", e);
-                    }
-                }
-            }
-        });
+        // tokio::spawn(async move {
+        //     let mut interval = time::interval(Duration::from_secs(10 * 60));
+        //     log::info!("OTP cleanup task started. Begin cleanup again in 10 minutes");
+        //     loop {
+        //         interval.tick().await;
+        //         let db = db.clone();
+        //         match db.check_and_clear_otps().await {
+        //             Ok(s) => {
+        //                 log::info!("========================================================================\n{}", s);
+        //             }
+        //             Err(e) => {
+        //                 log::error!("{}", e);
+        //             }
+        //         }
+        //     }
+        // });
         axum::serve(listener, app).await.unwrap();
     }
 

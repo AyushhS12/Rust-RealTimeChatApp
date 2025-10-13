@@ -11,9 +11,9 @@ pub fn handle_auth_routes() -> Router {
     let router = Router::new()
         .route("/signup", post(auth::signup))
         .route("/login", post(auth::login))
-        .route("/verify_user", post(user::verify))
         .route("/logout", get(auth::logout))
         .route("/session", get(auth::session));
+    // .route("/verify_user", post(user::verify))
     router
 }
 

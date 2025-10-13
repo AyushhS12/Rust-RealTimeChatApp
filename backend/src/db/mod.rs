@@ -1,5 +1,4 @@
 use crate::models::*;
-use chrono::Utc;
 use futures::StreamExt;
 use log::{debug, error, info};
 use mongodb::bson::Document;
@@ -26,7 +25,7 @@ pub struct Db {
     groups: Arc<Collection<Group>>,
     requests: Arc<Collection<Requests>>,
     group_messages: Arc<Collection<GroupMessage>>,
-    otp: Arc<Collection<OneTimePass>>,
+    // otp: Arc<Collection<OneTimePass>>,
 }
 
 impl IntoObjectId for String {
@@ -63,7 +62,7 @@ impl Db {
                 let groups = Arc::new(db.collection::<Group>("groups"));
                 let requests = Arc::new(db.collection::<Requests>("requests"));
                 let group_messages = Arc::new(db.collection::<GroupMessage>("group_messages"));
-                let otp = Arc::new(db.collection::<OneTimePass>("one_time_passwords"));
+                // let otp = Arc::new(db.collection::<OneTimePass>("one_time_passwords"));
                 Ok(Db {
                     users,
                     friends,
@@ -72,7 +71,6 @@ impl Db {
                     groups,
                     requests,
                     group_messages,
-                    otp,
                 })
             }
             Err(e) => {
@@ -93,7 +91,7 @@ impl Db {
         }
     }
 
-    pub async fn find_user_with_email(&self, email: String) -> Option<User> {
+    pub async fn _find_user_with_email(&self, email: String) -> Option<User> {
         let filter = doc! {
             "email":email
         };
@@ -213,95 +211,95 @@ impl Db {
         cursor
     }
 
-    pub async fn update_verification_for_user(&self, otp: Otp) -> Result<String, MyError> {
-        let res = self.otp.find_one(doc! {"email": otp.email}).await;
-        match res {
-            Ok(Some(r)) => {
-                info!("{}", r.user_id);
-                if Utc::now() >= r.expiry.into() {
-                    return Err(MyError::new(
-                        "otp expired , try again with another one",
-                        "db : update verification for user",
-                    ));
-                } else {
-                    if r.value == otp.value {
-                        let res = self
-                            .users
-                            .find_one_and_update(
-                                doc! {"_id":r.user_id.clone()},
-                                doc! {"$set":{"verified":true}},
-                            )
-                            .await;
-                        match res {
-                            Ok(Some(_)) => {
-                                self.otp
-                                    .find_one_and_delete(doc! {"user_id": r.user_id})
-                                    .await
-                                    .unwrap();
-                                Ok(String::from("success"))
-                            }
-                            Ok(None) => Err(MyError::new(
-                                "an error occured in finding the user",
-                                "db : update verification for user",
-                            )),
-                            Err(e) => Err(MyError::new(
-                                e.to_string(),
-                                "db : update user verification".to_string(),
-                            )),
-                        }
-                    } else {
-                        Err(MyError::new(
-                            "otp mismatch",
-                            "db : update verification for user 1",
-                        ))
-                    }
-                }
-            }
-            Ok(None) => Err(MyError::new(
-                "an error occured, resend otp and try again",
-                "db : update verification for user 2",
-            )),
-            Err(e) => Err(MyError::new(
-                e.to_string().as_str(),
-                "db : update verification for user 3",
-            )),
-        }
-    }
+    // pub async fn update_verification_for_user(&self, otp: Otp) -> Result<String, MyError> {
+    //     let res = self.otp.find_one(doc! {"email": otp.email}).await;
+    //     match res {
+    //         Ok(Some(r)) => {
+    //             info!("{}", r.user_id);
+    //             if Utc::now() >= r.expiry.into() {
+    //                 return Err(MyError::new(
+    //                     "otp expired , try again with another one",
+    //                     "db : update verification for user",
+    //                 ));
+    //             } else {
+    //                 if r.value == otp.value {
+    //                     let res = self
+    //                         .users
+    //                         .find_one_and_update(
+    //                             doc! {"_id":r.user_id.clone()},
+    //                             doc! {"$set":{"verified":true}},
+    //                         )
+    //                         .await;
+    //                     match res {
+    //                         Ok(Some(_)) => {
+    //                             self.otp
+    //                                 .find_one_and_delete(doc! {"user_id": r.user_id})
+    //                                 .await
+    //                                 .unwrap();
+    //                             Ok(String::from("success"))
+    //                         }
+    //                         Ok(None) => Err(MyError::new(
+    //                             "an error occured in finding the user",
+    //                             "db : update verification for user",
+    //                         )),
+    //                         Err(e) => Err(MyError::new(
+    //                             e.to_string(),
+    //                             "db : update user verification".to_string(),
+    //                         )),
+    //                     }
+    //                 } else {
+    //                     Err(MyError::new(
+    //                         "otp mismatch",
+    //                         "db : update verification for user 1",
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         Ok(None) => Err(MyError::new(
+    //             "an error occured, resend otp and try again",
+    //             "db : update verification for user 2",
+    //         )),
+    //         Err(e) => Err(MyError::new(
+    //             e.to_string().as_str(),
+    //             "db : update verification for user 3",
+    //         )),
+    //     }
+    // }
 
     // <============== Storing OTP ==============>
 
-    pub async fn store_otp(&self, otp: usize, email: String) -> Result<String, MyError> {
-        let user = self.find_user_with_email(email.clone()).await.unwrap();
-        let otp = OneTimePass::new(otp, user.id.unwrap().into(), email);
-        let res = self.otp.insert_one(otp).await;
-        match res {
-            Ok(r) => Ok(String::from(
-                "inserted id : ".to_string() + &r.inserted_id.to_string(),
-            )),
-            Err(e) => {
-                error!("{}", e.to_string());
-                Err(MyError::new(e.to_string(), "db : store otp".to_string()))
-            }
-        }
-    }
+    // pub async fn store_otp(&self, otp: usize, email: String) -> Result<String, MyError> {
+    //     let user = self.find_user_with_email(email.clone()).await.unwrap();
+    //     let otp = OneTimePass::new(otp, user.id.unwrap().into(), email);
+    //     let res = self.otp.insert_one(otp).await;
+    //     match res {
+    //         Ok(r) => Ok(String::from(
+    //             "inserted id : ".to_string() + &r.inserted_id.to_string(),
+    //         )),
+    //         Err(e) => {
+    //             error!("{}", e.to_string());
+    //             Err(MyError::new(e.to_string(), "db : store otp".to_string()))
+    //         }
+    //     }
+    // }
 
-    pub async fn check_and_clear_otps(&self) -> Result<String, MyError> {
-        let now = DateTime::from_chrono(Utc::now());
-        let result = self.otp.delete_many(doc! {"expiry": {"$lt": now}}).await;
-        match result {
-            Ok(res) => {
-                let s = format!(
-                    "number of documents deleted : {}\ndeleted these documents : {:?}",
-                    res.deleted_count, res
-                );
-                Ok(s)
-            }
-            Err(e) => Err(MyError::new(
-                e.to_string(),
-                String::from("db : check and clear otp function"),
-            )),
-        }
-    }
+    // pub async fn check_and_clear_otps(&self) -> Result<String, MyError> {
+    //     let now = DateTime::from_chrono(Utc::now());
+    //     let result = self.otp.delete_many(doc! {"expiry": {"$lt": now}}).await;
+    //     match result {
+    //         Ok(res) => {
+    //             let s = format!(
+    //                 "number of documents deleted : {}\ndeleted these documents : {:?}",
+    //                 res.deleted_count, res
+    //             );
+    //             Ok(s)
+    //         }
+    //         Err(e) => Err(MyError::new(
+    //             e.to_string(),
+    //             String::from("db : check and clear otp function"),
+    //         )),
+    //     }
+    // }
 
     // ========== Chats Collection ==========
 

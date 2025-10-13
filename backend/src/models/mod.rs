@@ -7,8 +7,6 @@ use argon2::{
     },
     Argon2
 };
-use bson::Bson;
-use chrono::{Duration, Utc};
 use log::error;
 use mongodb::bson::{oid::ObjectId, DateTime};
 use serde::{Deserialize, Serialize};
@@ -69,28 +67,28 @@ impl User {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct OneTimePass {
-    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    id: Option<ObjectId>,
-    pub value: usize,
-    pub expiry: DateTime,
-    pub email: String,
-    pub user_id: Bson,
-}
+// #[derive(Clone, Serialize, Deserialize, Debug)]
+// pub struct OneTimePass {
+//     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+//     id: Option<ObjectId>,
+//     pub value: usize,
+//     pub expiry: DateTime,
+//     pub email: String,
+//     pub user_id: Bson,
+// }
 
-impl OneTimePass {
-    pub fn new(value: usize, id: Bson, email: String) -> OneTimePass {
-        let expiry = (Utc::now() + Duration::minutes(10)).into();
-        OneTimePass {
-            id: None,
-            value,
-            expiry,
-            user_id: id,
-            email,
-        }
-    }
-}
+// impl OneTimePass {
+//     pub fn new(value: usize, id: Bson, email: String) -> OneTimePass {
+//         let expiry = (Utc::now() + Duration::minutes(10)).into();
+//         OneTimePass {
+//             id: None,
+//             value,
+//             expiry,
+//             user_id: id,
+//             email,
+//         }
+//     }
+// }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Friend {
@@ -364,8 +362,8 @@ impl From<mongodb::error::Error> for MyError{
 //     friends: Friend,
 // }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Otp {
-    pub email: String,
-    pub value: usize,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct Otp {
+//     pub email: String,
+//     pub value: usize,
+// }
