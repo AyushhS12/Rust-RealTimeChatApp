@@ -62,8 +62,13 @@ function Chat() {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
-    const url = BaseUrl.split("//")[1];
-    const ws = new WebSocket(`ws://${url}/chat`);
+    let url;
+    if( import.meta.env.ENV === "production"){
+      url = "wss://"+BaseUrl.split("//")[1];
+    } else {
+      url = "ws://localhost:7878/chat"
+    }
+    const ws = new WebSocket(`${url}/chat`);
 
     ws.onopen = () => {
       reconnectAttempts.current = 0;
