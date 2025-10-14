@@ -4,7 +4,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useAuthContext } from "./AuthContext";
 
-const useAuth = () => {
+const useAuth = (home = false) => {
   const { token, setToken } = useAuthContext();
   const navigate = useNavigate();
 
@@ -15,7 +15,8 @@ const useAuth = () => {
           withCredentials: true,
         });
         if (res.data.success) {
-          // if server validates cookie-based session, do nothing
+          
+          if (home) navigate("/chat");
           return true;
         } else {
           toast.error("Please login to continue");
@@ -31,7 +32,7 @@ const useAuth = () => {
       navigate("/auth");
       return false;
     }
-  }, [token, setToken, navigate]);
+  }, [token, setToken, navigate,home]);
 };
 
 export default useAuth;

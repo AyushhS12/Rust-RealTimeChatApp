@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import useAuth from '../context/useAuth';
 
 // --- HELPER SVG ICONS (converted to components for reusability) ---
 
@@ -25,9 +26,10 @@ const LockIcon = () => (
 // --- THE HOME COMPONENT ---
 
 function Home() {
-  const navigate = useNavigate()
+    useAuth(true)
+    const navigate = useNavigate()
     const takeToAuth = (mode: string) => {
-      navigate("/auth", {state:mode})
+        navigate("/auth", { state: mode })
     }
     return (
         <div className="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -43,10 +45,10 @@ function Home() {
                             <a href="#about" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">About</a>
                         </nav>
                         <div>
-                            <button onClick={()=>takeToAuth("login")} className="hidden sm:inline-block text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+                            <button onClick={() => takeToAuth("login")} className="hidden sm:inline-block text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
                                 Log In
                             </button>
-                            <button onClick={()=>takeToAuth("signup")} className="ml-4 inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+                            <button onClick={() => takeToAuth("signup")} className="ml-4 inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
                                 Sign Up
                             </button>
                         </div>
@@ -64,7 +66,7 @@ function Home() {
                         <p className="max-w-2xl mx-auto text-lg text-gray-600 dark:text-gray-400 mb-8">
                             Experience seamless, fast, and secure messaging. Glooo brings you closer to the people who matter most, with a simple and elegant interface.
                         </p>
-                        <button onClick={()=>takeToAuth("signup")} className="inline-flex items-center justify-center px-8 py-3 text-lg font-medium text-white bg-indigo-600 border border-transparent rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition transform hover:scale-105">
+                        <button onClick={() => takeToAuth("signup")} className="inline-flex items-center justify-center px-8 py-3 text-lg font-medium text-white bg-indigo-600 border border-transparent rounded-full shadow-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition transform hover:scale-105">
                             Get Started for Free
                         </button>
                     </div>

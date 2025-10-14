@@ -42,7 +42,7 @@ function Chat() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    axios.get(BaseUrl + "/api/get_my_id").then((val) => {
+    axios.get(BaseUrl + "/api/get_my_id",{withCredentials:true}).then((val) => {
       setid(val.data)
     }).catch((e) => {
       console.error(e)

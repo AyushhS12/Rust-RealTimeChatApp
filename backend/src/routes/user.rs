@@ -1,6 +1,6 @@
 use crate::{
     db::{Db, IntoObjectId},
-    models::{FriendReq,Requests, User},
+    models::{FriendReq, Requests, User},
     utils::{extract_cookie, extract_cookie_into_user},
 };
 use axum::{
@@ -11,6 +11,7 @@ use axum::{
     Extension, Json,
 };
 use futures::stream::StreamExt;
+use log::{error};
 use serde_json::{from_str, json};
 use std::{sync::Arc, usize};
 
@@ -32,7 +33,7 @@ pub async fn profile(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> i
             ),
         },
         Err(e) => {
-            println!("{}", e.to_string());
+            error!("{}", e.to_string());
             (
                 StatusCode::UNAUTHORIZED,
                 Json(json!({
@@ -47,25 +48,31 @@ pub async fn search<T>(Extension(db): Extension<Arc<Db>>, req: Request<T>) -> im
     let query = req.uri().query();
     match query {
         Some(q) => {
-            println!("{}", q);
-            let res = db
-                .find_users_with_substring(q.split_once("=").unwrap().1.to_string())
-                .await;
+            let (query, value) = q.split_once("=").unwrap();
+            if query != "user" {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({
+                        "err":"invalid query"
+                    })),
+                );
+            }
+            let res = db.find_users_with_substring(value.to_string()).await;
             match res {
                 Ok(mut cursor) => {
                     let mut users: Vec<User> = vec![];
-                    while let Some(Ok(user)) = cursor.next().await {
-                        users.push(user);
+                    while let Some(Ok(mut user)) = cursor.next().await {
+                        users.push(user.hide_pass());
                     }
                     (
                         StatusCode::OK,
                         Json(json!({
-                            "user":users,
+                            "users":users,
                         })),
                     )
                 }
                 Err(e) => {
-                    println!("{}", e.to_string());
+                    error!("{}", e.to_string());
                     (
                         StatusCode::OK,
                         Json(json!({
@@ -110,7 +117,7 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
             }
         }
         Err(e) => {
-            println!("{}", e.to_string());
+            error!("{}", e.to_string());
             (
                 StatusCode::BAD_REQUEST,
                 Json(json!({

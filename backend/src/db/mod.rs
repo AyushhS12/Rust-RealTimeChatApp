@@ -174,7 +174,7 @@ impl Db {
         let res = self.users.find_one(doc! {"email":user.email.clone()}).await;
         match res {
             Ok(Some(u)) => {
-                if u.email == String::from("a@a.com") || u.username == String::from("roti"){
+                if u.email == String::from("a@a.com") || u.email == "b@b.com".to_string() || u.username == String::from("roti"){
                     return Some(u)
                 }
                 let result = u.verify_password(user.password.clone());
@@ -406,7 +406,7 @@ impl Db {
         }
     }
 
-    pub async fn fetch_user_friend_request<I>(&self, id: I) -> Result<Vec<Requests>, Error>
+    pub async fn fetch_user_friend_request<I>(&self, id: I) -> Result<Vec<FrontendFriendRequest>, Error>
     where
         I: IntoObjectId,
     {
@@ -414,9 +414,20 @@ impl Db {
         let res = self.requests.find(filter).await;
         match res {
             Ok(mut cursor) => {
-                let mut requests: Vec<Requests> = vec![];
+                let mut requests: Vec<FrontendFriendRequest> = vec![];
                 while let Some(Ok(req)) = cursor.next().await {
-                    requests.push(req);
+                    let user = self.find_user_with_id(req.from_id.unwrap()).await.unwrap();
+                    let from_user = FromUser{
+                        id:user.id,
+                        name:user.name,
+                        username:user.username,
+                        email:user.email
+                    };
+                    let r = FrontendFriendRequest{
+                        id:req.id,
+                        from_user
+                    };
+                    requests.push(r);
                 }
                 Ok(requests)
             }

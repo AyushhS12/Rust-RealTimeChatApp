@@ -5,6 +5,8 @@ import Auth from './pages/Auth'
 import Chat from './pages/Chat'
 import { AuthProvider } from './context/AuthContextProvider'
 import { Toaster } from 'react-hot-toast'
+import Friends from './pages/Friends'
+import { Profile } from './pages/Profile'
 
 function App() {
 
@@ -16,8 +18,8 @@ function App() {
         <Routes>
           <Route path='/' element={<Home/>}/>
           <Route path='/auth' element={<Auth/>}/>
-            <Route path='/profile' element={<Home/>}/>
-          <Route path='/contact' element={<Home/>}/>
+            <Route path='/profile' element={<Profile/>}/>
+          <Route path='/friends' element={<Friends/>}/>
           <Route path='/chat' element={<Chat/>}/>
         </Routes>
       </BrowserRouter>

@@ -217,7 +217,7 @@ pub struct DirectMessage {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Requests {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    id: Option<ObjectId>,
+    pub id: Option<ObjectId>,
     pub from_id: Option<ObjectId>,
     pub to_id: Option<ObjectId>,
     status: String,
@@ -356,6 +356,21 @@ impl From<mongodb::error::Error> for MyError{
     }
 }
 
+#[derive(Serialize,Deserialize,Debug,Clone)]
+pub struct FrontendFriendRequest{
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub from_user:FromUser
+}
+
+#[derive(Serialize,Deserialize,Debug,Clone)]
+pub struct FromUser{
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub name:String,
+    pub username:String,
+    pub email:String
+}
 // #[derive(Serialize, Deserialize, Debug)]
 // pub struct Profile {
 //     user: User,
