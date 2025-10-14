@@ -45,7 +45,7 @@ impl Server {
             // 3. Allow common HTTP methods
             .allow_methods([Method::GET, Method::POST,Method::DELETE,Method::OPTIONS])
             // 4. Allow specific headers that might be sent in a request
-            .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE,header::ACCESS_CONTROL_ALLOW_ORIGIN]);
+            .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE,header::ORIGIN]);
         let app = self
             .manage_routers()
             .await
