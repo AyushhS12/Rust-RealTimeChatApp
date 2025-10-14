@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{http::{header, Method}, middleware, Extension, Router};
 use mongodb::bson::oid::ObjectId;
 use tokio::{net::TcpListener, sync::Mutex};
-use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 use crate::{
     db::Db,
@@ -45,7 +45,7 @@ impl Server {
             // 3. Allow common HTTP methods
             .allow_methods([Method::GET, Method::POST,Method::DELETE,Method::OPTIONS])
             // 4. Allow specific headers that might be sent in a request
-            .allow_headers(Any);
+            .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE,header::ACCESS_CONTROL_ALLOW_ORIGIN]);
         let app = self
             .manage_routers()
             .await
