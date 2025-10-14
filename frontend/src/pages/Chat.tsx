@@ -63,10 +63,10 @@ function Chat() {
       reconnectTimer.current = null;
     }
     let url;
-    if( import.meta.env.ENV === "production"){
+    if( import.meta.env.VITE_ENV === "production"){
       url = "wss://"+BaseUrl.split("//")[1];
     } else {
-      url = "ws://localhost:7878/chat"
+      url = "ws://localhost:7878"
     }
     const ws = new WebSocket(`${url}/chat`);
 
