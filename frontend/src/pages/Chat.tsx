@@ -63,7 +63,7 @@ function Chat() {
       reconnectTimer.current = null;
     }
     const url = BaseUrl.split("//")[1];
-    const ws = new WebSocket("ws://localhost:7878/chat");
+    const ws = new WebSocket(`ws://${url}/chat`);
 
     ws.onopen = () => {
       reconnectAttempts.current = 0;
