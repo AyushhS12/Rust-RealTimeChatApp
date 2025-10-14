@@ -11,7 +11,7 @@ const useAuth = () => {
   return useCallback(async () => {
     try {
       if (!token) {
-        const res = await axios.get("http://localhost:7878/auth/session", {
+        const res = await axios.get(import.meta.env.VITE_BACKEND_URL+"/auth/session", {
           withCredentials: true,
         });
         if (res.data.success) {
