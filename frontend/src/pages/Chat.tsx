@@ -28,7 +28,7 @@ interface Conversation {
   last_message: Message;
 }
 
-const BaseUrl = import.meta.env.VITE_BACKEND_URL;
+const BaseUrl:string = import.meta.env.VITE_BACKEND_URL;
 function Chat() {
   const logout = useLogout();
   const authGuard = useAuth();
@@ -62,6 +62,7 @@ function Chat() {
       clearTimeout(reconnectTimer.current);
       reconnectTimer.current = null;
     }
+    const url = BaseUrl.split("//")[1];
     const ws = new WebSocket("ws://localhost:7878/chat");
 
     ws.onopen = () => {
