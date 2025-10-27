@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import useAuth from "../context/useAuth";
 import { useLogout } from "../context/useLogout";
 import toast from "react-hot-toast";
+import { Link } from "react-router-dom";
 
 interface Id {
   $oid: string;
@@ -23,16 +24,16 @@ interface MessageToSend {
 }
 interface Conversation {
   id: Id;
-  sender:Id,
+  sender: Id,
   receiver: { id: Id; name: string; username: string };
   last_message: Message;
 }
 
-const BaseUrl:string = import.meta.env.VITE_BACKEND_URL;
+const BaseUrl: string = import.meta.env.VITE_BACKEND_URL;
 function Chat() {
   const logout = useLogout();
   const authGuard = useAuth();
-  const [id, setid] = useState<Id|null>(null)
+  const [id, setid] = useState<Id | null>(null)
   const selectedChatIdRef = useRef<string>("");
   const [chats, setChats] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
@@ -42,12 +43,12 @@ function Chat() {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    axios.get(BaseUrl + "/api/get_my_id",{withCredentials:true}).then((val) => {
+    axios.get(BaseUrl + "/api/get_my_id", { withCredentials: true }).then((val) => {
       setid(val.data)
     }).catch((e) => {
       console.error(e)
     })
-  },[])
+  }, [])
   const temp = messages[selectedChatId]
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -63,8 +64,8 @@ function Chat() {
       reconnectTimer.current = null;
     }
     let url;
-    if( import.meta.env.VITE_ENV === "production"){
-      url = "wss://"+BaseUrl.split("//")[1];
+    if (import.meta.env.VITE_ENV === "production") {
+      url = "wss://" + BaseUrl.split("//")[1];
     } else {
       url = "ws://localhost:7878"
     }
@@ -143,11 +144,11 @@ function Chat() {
       if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify(message));
         const realMsg: Message = {
-          from_id:id,
-          to_id:chat.receiver.id,
-          content:msg,
-          chat_id:chat.id,
-          id:null
+          from_id: id,
+          to_id: chat.receiver.id,
+          content: msg,
+          chat_id: chat.id,
+          id: null
         }
         setMessages((prev) => {
           // Append the message for this chat
@@ -162,7 +163,7 @@ function Chat() {
         connect();
       }
     },
-    [socket, connect,id]
+    [socket, connect, id]
   );
 
   const fetchMessages = useCallback(async (chatId: string) => {
@@ -211,6 +212,21 @@ function Chat() {
           Chats
         </div>
         <div className="flex-1 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
+          {!loading && chats.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-gray-500 dark:text-gray-400">
+              <>
+                <span className="mb-4 text-lg">No chats yet!</span>
+                <p className="mb-4 text-sm">Add friends to start chatting.</p>
+                <Link
+                  to="/friends"
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition"
+                >
+                  Find Friends
+                </Link>
+              </>
+              {/* )} */}
+            </div>
+          )}
           {chats.map((chat) => (
             <div
               key={chat.id.$oid}
@@ -239,12 +255,31 @@ function Chat() {
             </div>
           ))}
         </div>
-        {!loading && <button
-          onClick={logout}
-          className="bg-red-500 text-white py-2 mt-auto"
-        >
-          Logout
-        </button>}
+        {!loading && (
+          <div className="mt-auto p-4 space-y-2 border-t border-gray-300 dark:border-gray-700"> {/* Added padding, spacing, and top border */}
+
+            {/* Friends Button */}
+            <Link
+              to="/friends" // Link destination
+              className="w-full inline-block text-center px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-md shadow-sm 
+             hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 
+             focus:ring-green-500 transition duration-150 ease-in-out transform hover:-translate-y-0.5" // Same styling as before
+            >
+              Friends
+            </Link>
+
+            {/* Logout Button */}
+            <button
+              onClick={logout}
+              className="w-full px-4 py-2 cursor-pointer text-sm font-medium text-white bg-red-500 rounded-md shadow-sm 
+                 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                 focus:ring-red-500 transition duration-150 ease-in-out transform hover:-translate-y-0.5" // Added transition and hover transform
+            >
+              Logout
+            </button>
+
+          </div>
+        )}
       </div>
 
       {/* Right Side — Chat Window */}
