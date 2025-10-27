@@ -11,7 +11,7 @@ use axum::{
     Extension, Json,
 };
 use futures::stream::StreamExt;
-use log::{error};
+use log::error;
 use serde_json::{from_str, json};
 use std::{sync::Arc, usize};
 
@@ -45,7 +45,9 @@ pub async fn profile(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> i
 }
 
 pub async fn search<T>(Extension(db): Extension<Arc<Db>>, req: Request<T>) -> impl IntoResponse {
-    let query = req.uri().query();
+    let (parts, _) = req.into_parts();
+    let uri = parts.uri.clone();
+    let query = uri.query();
     match query {
         Some(q) => {
             let (query, value) = q.split_once("=").unwrap();
@@ -57,11 +59,15 @@ pub async fn search<T>(Extension(db): Extension<Arc<Db>>, req: Request<T>) -> im
                     })),
                 );
             }
+            let id = extract_cookie(parts).await.unwrap().sub;
             let res = db.find_users_with_substring(value.to_string()).await;
             match res {
                 Ok(mut cursor) => {
                     let mut users: Vec<User> = vec![];
                     while let Some(Ok(mut user)) = cursor.next().await {
+                        if user.id.unwrap().to_hex() == id {
+                            continue;
+                        }
                         users.push(user.hide_pass());
                     }
                     (
@@ -98,7 +104,7 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
     let req = from_str::<FriendReq>(&data);
     match req {
         Ok(r) => {
-            let from_id = Some(extract_cookie(parts).await.unwrap().sub.into_object_id());
+            let from_id = extract_cookie(parts).await.unwrap().sub;
             let request = Requests::new_from_friend_req(r, from_id);
             let res = db.add_friend_request(request).await;
             match res {
@@ -127,6 +133,10 @@ pub async fn send_req(Extension(db): Extension<Arc<Db>>, r: Request<Body>) -> im
         }
     }
 }
+
+
+
+
 
 // Only auth function which is in users routes because of my poor memory
 

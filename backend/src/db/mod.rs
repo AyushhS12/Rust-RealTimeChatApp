@@ -174,8 +174,11 @@ impl Db {
         let res = self.users.find_one(doc! {"email":user.email.clone()}).await;
         match res {
             Ok(Some(u)) => {
-                if u.email == String::from("a@a.com") || u.email == "b@b.com".to_string() || u.username == String::from("roti"){
-                    return Some(u)
+                if u.email == String::from("a@a.com")
+                    || u.email == "b@b.com".to_string()
+                    || u.username == String::from("roti")
+                {
+                    return Some(u);
                 }
                 let result = u.verify_password(user.password.clone());
                 match result {
@@ -319,9 +322,15 @@ impl Db {
                 while let Some(res) = cursor.next().await {
                     match res {
                         Ok(chat) => {
+                            if chat.id == None {
+                                break
+                            }
                             chats.push(chat.convert(id, self).await.unwrap());
                         }
-                        Err(e) => return Err(MyError::from_error(e, "db : get chats 1")),
+                        Err(e) =>{
+                            error!("{}",e.to_string());
+                            continue;
+                        }
                     }
                 }
                 Ok(chats)
@@ -330,7 +339,7 @@ impl Db {
         }
     }
 
-    pub async fn chat_exists(&self, chat_id: impl IntoObjectId) -> bool{
+    pub async fn chat_exists(&self, chat_id: impl IntoObjectId) -> bool {
         let id = chat_id.into_object_id();
         let res = self.chats.find_one(doc! {"_id":id}).await;
         match res {
@@ -341,7 +350,7 @@ impl Db {
             }
             Err(e) => {
                 let err = MyError::from_error(e, "db : chat exists");
-                error!("{}",err);
+                error!("{}", err);
                 false
             }
         }
@@ -406,7 +415,10 @@ impl Db {
         }
     }
 
-    pub async fn fetch_user_friend_request<I>(&self, id: I) -> Result<Vec<FrontendFriendRequest>, Error>
+    pub async fn fetch_user_friend_request<I>(
+        &self,
+        id: I,
+    ) -> Result<Vec<FrontendFriendRequest>, MyError>
     where
         I: IntoObjectId,
     {
@@ -417,21 +429,21 @@ impl Db {
                 let mut requests: Vec<FrontendFriendRequest> = vec![];
                 while let Some(Ok(req)) = cursor.next().await {
                     let user = self.find_user_with_id(req.from_id.unwrap()).await.unwrap();
-                    let from_user = FromUser{
-                        id:user.id,
-                        name:user.name,
-                        username:user.username,
-                        email:user.email
+                    let from_user = FromUser {
+                        id: user.id,
+                        name: user.name,
+                        username: user.username,
+                        email: user.email,
                     };
-                    let r = FrontendFriendRequest{
-                        id:req.id,
-                        from_user
+                    let r = FrontendFriendRequest {
+                        id: req.id,
+                        from_user,
                     };
                     requests.push(r);
                 }
                 Ok(requests)
             }
-            Err(e) => Err(e),
+            Err(e) => Err(MyError::from_error(e, "fetch user friend request")),
         }
     }
 
@@ -482,18 +494,37 @@ impl Db {
                             match res {
                                 Ok(res) => {
                                     info!("added friend in db : {}", res.inserted_id);
-                                    loop {
-                                        let response = self.create_chat(from_id, to_id).await;
-                                        match response {
-                                            Ok(r) => {
-                                                return Ok((
-                                                    "friend request accepted".to_string(),
-                                                    r.inserted_id,
-                                                ))
+                                    let response = self.create_chat(from_id, to_id).await;
+                                    match response {
+                                        Ok(r) => {
+                                            match self
+                                                .requests
+                                                .delete_one(doc! {"_id":req.id})
+                                                .await
+                                            {
+                                                Ok(_) => {
+                                                    return Ok((
+                                                        "friend request accepted".to_string(),
+                                                        r.inserted_id,
+                                                    ))
+                                                }
+                                                Err(e) => {
+                                                    error!("{}", e);
+                                                    Err(MyError::new(
+                                                        e.to_string(),
+                                                        String::from(
+                                                            "db : handle request fucntion 1",
+                                                        ),
+                                                    ))
+                                                }
                                             }
-                                            Err(_) => {
-                                                continue;
-                                            }
+                                        }
+                                        Err(e) => {
+                                            error!("{}", e);
+                                            Err(MyError::new(
+                                                e.to_string(),
+                                                String::from("db : handle request fucntion 2"),
+                                            ))
                                         }
                                     }
                                 }
@@ -501,7 +532,7 @@ impl Db {
                                     error!("{}", e.to_string());
                                     Err(MyError::new(
                                         e.to_string(),
-                                        String::from("db : handle request fucntion 1"),
+                                        String::from("db : handle request fucntion 3"),
                                     ))
                                 }
                             }
@@ -548,8 +579,23 @@ impl Db {
     }
 
     // ========== Messages Collection ==========
+    pub async fn find_message(&self,id: impl IntoObjectId) -> Option<DirectMessage>{
+        let res = self.messages.find_one(doc! {"_id":id.into_object_id().clone()}).await;
+        match res {
+            Ok(m) => {
+                m
+            }
+            Err(e) => {
+                error!("{}",e);
+                None
+            }
+        }
+    }
 
-    pub async fn get_messages_with_chat_id(&self, chat_id: ObjectId) -> Result<Vec<DirectMessage>, MyError>{
+    pub async fn get_messages_with_chat_id(
+        &self,
+        chat_id: ObjectId,
+    ) -> Result<Vec<DirectMessage>, MyError> {
         let res = self.messages.find(doc! {"chat_id":chat_id}).await;
         match res {
             Ok(mut c) => {
@@ -559,9 +605,7 @@ impl Db {
                 }
                 Ok(messages)
             }
-            Err(e) => {
-                Err(MyError::from_error(e, "db : get messages with chat id"))
-            }
+            Err(e) => Err(MyError::from_error(e, "db : get messages with chat id")),
         }
     }
 
@@ -578,7 +622,7 @@ impl Db {
                             "_id":msg.chat_id,
                         };
                         let update = doc! {
-                            "$set":{"last_updated_message":DateTime::now()}
+                            "$set":{"last_updated_message":msg.content}
                         };
                         let res = self.chats.update_one(query, update).await.unwrap();
                         info!("{:?}", res);
@@ -619,19 +663,20 @@ impl Db {
         }
     }
 
-    pub async fn group_exists(&self, group_id: impl IntoObjectId) -> bool{
-        let res = self.groups.find_one(doc! {"_id":group_id.into_object_id()}).await;
-        match res{
-            Ok(Some(_)) => {
-                true
-            }
+    pub async fn group_exists(&self, group_id: impl IntoObjectId) -> bool {
+        let res = self
+            .groups
+            .find_one(doc! {"_id":group_id.into_object_id()})
+            .await;
+        match res {
+            Ok(Some(_)) => true,
             Ok(None) => {
                 error!("group does not exist");
                 false
             }
             Err(e) => {
                 let err = MyError::from_error(e, "db : group exists");
-                error!("{}",err);
+                error!("{}", err);
                 false
             }
         }

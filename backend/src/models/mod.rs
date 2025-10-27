@@ -1,11 +1,8 @@
-use std::{collections::HashSet};
+use std::collections::HashSet;
 
 use argon2::{
-    password_hash::{
-        rand_core::OsRng,
-        PasswordHash, PasswordHasher, PasswordVerifier, SaltString
-    },
-    Argon2
+    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
 };
 use log::error;
 use mongodb::bson::{oid::ObjectId, DateTime};
@@ -41,23 +38,17 @@ impl User {
                 self.password = pass.to_string();
                 Ok(self.to_owned())
             }
-            Err(e) => {
-                Err(MyError::from_error(e, "models : protect pass"))
-            }
+            Err(e) => Err(MyError::from_error(e, "models : protect pass")),
         }
     }
 
-    pub fn verify_password(&self,password:String) -> Result<(), MyError> {
+    pub fn verify_password(&self, password: String) -> Result<(), MyError> {
         let argon2 = Argon2::default();
         let hash = PasswordHash::new(&self.password).unwrap();
         let res = argon2.verify_password(password.as_bytes(), &hash);
         match res {
-            Ok(()) => {
-                Ok(())
-            }
-            Err(e) => {
-                Err(MyError::from_error(e, "models : verify password"))
-            }
+            Ok(()) => Ok(()),
+            Err(e) => Err(MyError::from_error(e, "models : verify password")),
         }
     }
 
@@ -112,11 +103,11 @@ impl Friend {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Chat {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
-    id: Option<ObjectId>,
+    pub id: Option<ObjectId>,
     users: Vec<ObjectId>,
     //DateTime fields
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_message_update: Option<DirectMessage>,
+    pub last_message_update: Option<ObjectId>,
     pub created_at: DateTime,
 }
 
@@ -134,51 +125,65 @@ impl Chat {
             id: None,
             users,
             created_at: DateTime::now(),
-            last_message_update: Some(msg),
+            last_message_update: msg.id,
         }
     }
 
-    pub async  fn convert(&self, id: impl IntoObjectId,db: &Db) -> Option<Conversation> {
+    pub async fn convert(&self, id: impl IntoObjectId, db: &Db) -> Option<Conversation> {
+        let last_message = match self.last_message_update {
+            Some(msg) => {
+                db.find_message(msg).await
+            }
+            None => None
+        };
         match self.users.as_slice() {
             [user1, user2] => {
                 if user1.to_hex() == id.to_string() {
                     let user = db.find_user_with_id(user2.into_object_id()).await.unwrap();
                     Some(Conversation {
-                        id:self.id,
+                        id: self.id,
                         sender: *user1,
-                        receiver: TempUser { id: user.id.unwrap(), name: user.name, username: user.username },
-                        last_updated_message:self.last_message_update.clone()
+                        receiver: TempUser {
+                            id: user.id.unwrap(),
+                            name: user.name,
+                            username: user.username,
+                        },
+                        last_updated_message: last_message,
                     })
                 } else {
                     let user = db.find_user_with_id(user1.into_object_id()).await.unwrap();
                     Some(Conversation {
-                        id:self.id,
+                        id: self.id,
                         sender: *user2,
-                        receiver: TempUser { id: user.id.unwrap(), name:user.name, username: user.username},
-                        last_updated_message:self.last_message_update.clone()
+                        receiver: TempUser {
+                            id: user.id.unwrap(),
+                            name: user.name,
+                            username: user.username,
+                        },
+                        last_updated_message: last_message,
                     })
                 }
             }
             _ => {
                 error!("cannot convert because chat have more than two members");
                 None
-            },
+            }
         }
     }
 }
 
-#[derive(Deserialize,Serialize,Debug,Clone)]
-pub struct Conversation{
-    id:Option<ObjectId>,
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Conversation {
+    id: Option<ObjectId>,
     sender: ObjectId,
     receiver: TempUser,
-    last_updated_message:Option<DirectMessage>
+    last_updated_message: Option<DirectMessage>,
 }
-#[derive(Deserialize,Serialize,Debug,Clone)]
-struct TempUser{
-    id:ObjectId,
-    name:String,
-    username:String
+#[derive(Deserialize, Serialize, Debug, Clone)]
+struct TempUser {
+    id: ObjectId,
+    name: String,
+    username: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -209,7 +214,7 @@ pub struct DirectMessage {
     pub chat_id: Option<ObjectId>,
     pub from_id: Option<ObjectId>,
     pub to_id: Option<ObjectId>,
-    content: String,
+    pub content: String,
     //DateTime fields
     pub created_at: Option<DateTime>,
 }
@@ -226,10 +231,10 @@ pub struct Requests {
 }
 
 impl Requests {
-    pub fn new_from_friend_req(f: FriendReq, from_id: Option<ObjectId>) -> Requests {
+    pub fn new_from_friend_req(f: FriendReq, from_id: impl IntoObjectId) -> Requests {
         Requests {
             id: None,
-            from_id,
+            from_id: Some(from_id.into_object_id()),
             to_id: f.to_id,
             status: String::from("pending"),
             created_at: DateTime::now(),
@@ -246,8 +251,10 @@ pub struct GroupMessage {
     id: Option<ObjectId>,
     pub group_id: Option<ObjectId>,
     pub from_id: Option<ObjectId>,
+    pub content: String,
     //DateTime fields
-    created_at: DateTime,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<DateTime>,
 }
 
 //Utility Models
@@ -334,8 +341,10 @@ impl MyError {
     pub fn error(&self) -> &str {
         &self.error
     }
-    pub fn from_error<T>(e: T, location: &str) -> MyError 
-    where T : ToString + ToOwned{
+    pub fn from_error<T>(e: T, location: &str) -> MyError
+    where
+        T: ToString + ToOwned,
+    {
         MyError {
             error: e.to_string(),
             location: location.to_string(),
@@ -349,27 +358,30 @@ impl std::fmt::Display for MyError {
 }
 impl std::error::Error for MyError {}
 
-
-impl From<mongodb::error::Error> for MyError{
+impl From<mongodb::error::Error> for MyError {
     fn from(value: mongodb::error::Error) -> Self {
-        MyError { error: value.to_string(), location: "don't know".to_string() }
+        MyError {
+            error: value.to_string(),
+            location: "don't know".to_string(),
+        }
     }
 }
 
-#[derive(Serialize,Deserialize,Debug,Clone)]
-pub struct FrontendFriendRequest{
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FrontendFriendRequest {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    pub from_user:FromUser
+    #[serde(rename = "fromUser")]
+    pub from_user: FromUser,
 }
 
-#[derive(Serialize,Deserialize,Debug,Clone)]
-pub struct FromUser{
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FromUser {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    pub name:String,
-    pub username:String,
-    pub email:String
+    pub name: String,
+    pub username: String,
+    pub email: String,
 }
 // #[derive(Serialize, Deserialize, Debug)]
 // pub struct Profile {

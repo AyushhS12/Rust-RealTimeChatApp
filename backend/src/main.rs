@@ -1,4 +1,4 @@
-use log::{error,info};
+use log::{debug,info};
 use std::{env};
 
 use crate::server::Server;
@@ -38,7 +38,7 @@ async fn main() {
             format!("0.0.0.0:{}",port)
         }
         Err(e) => {
-            error!("post not found defaulting to port 7878\nerror: {}",e);
+            debug!("ENVIRONMENT VAR port not found defaulting to 7878\nerror: {}",e);
             format!("localhost:7878")
         }
     };

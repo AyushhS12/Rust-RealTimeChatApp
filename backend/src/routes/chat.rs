@@ -8,6 +8,7 @@ use axum::{
     response::IntoResponse,
     Extension,
 };
+use bson::DateTime;
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use log::{debug, error, info};
 use mongodb::results::InsertOneResult;
@@ -107,6 +108,7 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                         if let Ok(message) = from_str::<ChatMessage>(data) {
                             match message {
                                 ChatMessage::Direct(mut m) => {
+                                    m.created_at = Some(DateTime::now());
                                     if !db.chat_exists(m.chat_id.clone().unwrap()).await {
                                         error!("Chat does not exists");
                                         return;
@@ -135,6 +137,7 @@ async fn handle_chat(manager: Arc<Mutex<Manager>>, id: String, ws: WebSocket, db
                                     }
                                 }
                                 ChatMessage::Group(mut m) => {
+                                    m.created_at = Some(DateTime::now());
                                     if !db.group_exists(m.group_id.clone().unwrap()).await {
                                         error!("Group does not exists");
                                         return;

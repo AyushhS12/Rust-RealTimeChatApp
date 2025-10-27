@@ -62,7 +62,8 @@ pub fn handle_group_routes() -> Router{
 fn api_request_routes() -> Router{
     let router = Router::new()
         .route("/get_requests", get(api::get_friend_request))
-        .route("/handle_request", post(api::handle_friend_request));
+        .route("/handle_request", post(api::handle_friend_request))
+        .route("/send", post(api::handle_incoming_request));
     router
 }
 

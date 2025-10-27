@@ -6,14 +6,14 @@ use axum::{
     Extension, Json,
 };
 use bson::{oid::ObjectId, Bson};
-use log::{error, info};
+use log::{debug, error, info};
 use std::{sync::Arc, usize};
 // use mongodb::bson::oid::ObjectId;
 use serde_json::{from_str, json};
 
 use crate::{
     db::Db,
-    models::{FriendRequest, MyError},
+    models::{FriendReq, FriendRequest, MyError, Requests},
     utils::{extract_cookie, extract_cookie_into_user},
 };
 
@@ -34,7 +34,7 @@ pub async fn get_chats(Extension(db): Extension<Arc<Db>>, req: Request<Body>) ->
                 )
                 },
                 Err(e) => {
-                    error!("error in get friend request {}", e.to_string());
+                    error!("error in get chats {}", e.to_string());
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(json!({
@@ -185,4 +185,28 @@ pub async fn get_my_id(Extension(db): Extension<Arc<Db>>,req: Request<Body>) -> 
         }
     }
 
+}
+
+pub async fn handle_incoming_request(Extension(db): Extension<Arc<Db>>,req: Request<Body>) -> impl IntoResponse{
+    let (parts , body) = req.into_parts();
+    let bytes = to_bytes(body, usize::MAX).await.unwrap();
+    let data = String::from_utf8_lossy(&bytes).to_string();
+    let id = extract_cookie(parts).await.unwrap().sub;
+    let req = from_str::<FriendReq>(&data).unwrap();
+    let request = Requests::new_from_friend_req(req, id);
+    let res = db.add_friend_request(request).await;
+    match res {
+        Ok(msg) => {
+            debug!("{}",msg);
+            (StatusCode::OK, Json(json!({
+                "success":true
+            })))
+        }
+        Err(e) => {
+            error!("{}",e.to_string());
+            (StatusCode::OK, Json(json!({
+                "success":false
+            })))
+        }
+    }
 }
