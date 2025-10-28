@@ -39,6 +39,7 @@ function Chat() {
   const [messages, setMessages] = useState<Record<string, Message[]>>({});
   const [selectedChatId, setSelectedChatId] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(true);
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -121,6 +122,7 @@ function Chat() {
 
   // 🚀 Fetch chats + connect
   const fetchChatsAndConnect = useCallback(async () => {
+    setChatLoading(true)
     try {
       const res = await axios.get(BaseUrl + "/api/chat/get_chats", {
         withCredentials: true,
@@ -129,6 +131,8 @@ function Chat() {
       connect();
     } catch (err) {
       console.error("Failed to fetch chats:", err);
+    } finally {
+      setChatLoading(false)
     }
   }, [connect]);
 
@@ -213,16 +217,18 @@ function Chat() {
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
-          {/* ⏳ Loading Spinner for chat list */}
-          {loading && chats.length === 0 && (
+          {/* ⏳ Show loading spinner while fetching chats */}
+          {chatLoading && (
             <div className="flex flex-col items-center justify-center h-full">
               <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading chats...</p>
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                Loading chats...
+              </p>
             </div>
           )}
 
-          {/* 🫂 No Chats yet */}
-          {!loading && chats.length === 0 && (
+          {/* 🫂 If no chats after loading */}
+          {!chatLoading && chats.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center p-6 text-gray-500 dark:text-gray-400">
               <span className="mb-4 text-lg">No chats yet!</span>
               <p className="mb-4 text-sm">Add friends to start chatting.</p>
@@ -236,35 +242,36 @@ function Chat() {
           )}
 
           {/* 💬 Chat List */}
-          {chats.map((chat) => (
-            <div
-              key={chat.id.$oid}
-              onClick={() => {
-                setLoading(true);
-                setSelectedChatId(chat.id.$oid);
-                fetchMessages(chat.id.$oid);
-              }}
-              className={`flex items-center p-4 cursor-pointer transition ${selectedChatId === chat.id.$oid
-                  ? "bg-gray-300 dark:bg-gray-700"
-                  : "hover:bg-gray-200 dark:hover:bg-gray-800"
-                }`}
-            >
-              <div className="h-10 w-10 bg-indigo-500 text-white flex items-center justify-center rounded-full mr-3 font-semibold">
-                {chat.receiver.name[0].toUpperCase()}
+          {!chatLoading &&
+            chats.map((chat) => (
+              <div
+                key={chat.id.$oid}
+                onClick={() => {
+                  setLoading(true);
+                  setSelectedChatId(chat.id.$oid);
+                  fetchMessages(chat.id.$oid);
+                }}
+                className={`flex items-center p-4 cursor-pointer transition ${selectedChatId === chat.id.$oid
+                    ? "bg-gray-300 dark:bg-gray-700"
+                    : "hover:bg-gray-200 dark:hover:bg-gray-800"
+                  }`}
+              >
+                <div className="h-10 w-10 bg-indigo-500 text-white flex items-center justify-center rounded-full mr-3 font-semibold">
+                  {chat.receiver.name[0].toUpperCase()}
+                </div>
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800 dark:text-gray-100">
+                    {chat.receiver.name}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {chat.last_message?.content || "No messages yet"}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-800 dark:text-gray-100">
-                  {chat.receiver.name}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                  {chat.last_message?.content || "No messages yet"}
-                </p>
-              </div>
-            </div>
-          ))}
+            ))}
         </div>
 
-        {!loading && (
+        {!chatLoading && (
           <div className="mt-auto p-4 space-y-2 border-t border-gray-300 dark:border-gray-700">
             <Link
               to="/friends"
@@ -307,14 +314,14 @@ function Chat() {
                     <div
                       key={idx}
                       className={`flex ${msg.from_id?.$oid === selectedChat.receiver.id.$oid
-                          ? "justify-start"
-                          : "justify-end"
+                        ? "justify-start"
+                        : "justify-end"
                         }`}
                     >
                       <div
                         className={`max-w-xs px-4 py-2 rounded-lg text-white ${msg.from_id?.$oid === selectedChat.receiver.id.$oid
-                            ? "bg-gray-600"
-                            : "bg-indigo-600"
+                          ? "bg-gray-600"
+                          : "bg-indigo-600"
                           }`}
                       >
                         <span className="text-black font-bold">
