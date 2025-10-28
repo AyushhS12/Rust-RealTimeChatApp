@@ -170,7 +170,7 @@ function Chat() {
     setLoading(true);
     try {
       const res = await axios.get(
-        `http://localhost:7878/api/chat/message/get_messages/${chatId}`,
+        `${BaseUrl}/api/chat/message/get_messages/${chatId}`,
         { withCredentials: true }
       );
       setMessages((prev) => ({
