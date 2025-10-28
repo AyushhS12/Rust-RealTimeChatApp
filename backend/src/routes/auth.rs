@@ -16,7 +16,7 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 //     message::header::ContentType, transport::smtp::authentication::Credentials, AsyncSmtpTransport,
 //     Message, Tokio1Executor,
 // };
-use log::{error, info};
+use log::{debug, error, info};
 // use rand::Rng;
 use serde_json::{from_str, from_value, json, Value};
 use std::{
@@ -184,11 +184,25 @@ pub async fn logout(Extension(db): Extension<Arc<Db>>, req: Request<Body>) -> im
         Ok(Some(mut user)) => {
             let res = parts.headers.remove("Cookie");
             info!("deleted {:?}", res);
+            let http = match env::var("ENV").unwrap().as_str() {
+                "development" => {
+                    true
+                }
+
+                "production" => {
+                    false
+                }
+                
+                _ => {
+                    debug!("no variable named ENV found deafaulting to development");
+                    true
+                }
+            };
             let cookie = CookieBuilder::build(
                 Cookie::build(("jwt", ""))
                     .path("/")
                     .max_age(Samay::ZERO)
-                    .http_only(true)
+                    .http_only(http)
                     .same_site(cookie::SameSite::None)
                     .secure(true),
             );

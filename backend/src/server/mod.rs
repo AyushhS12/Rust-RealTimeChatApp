@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use axum::{http::{header, Method}, middleware, Extension, Router};
+use axum::{Extension, Router, http::{HeaderValue, Method, header}, middleware};
 use mongodb::bson::oid::ObjectId;
 use tokio::{net::TcpListener, sync::Mutex};
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -35,7 +35,7 @@ impl Server {
     pub async fn listen(self) {
         let listener = TcpListener::bind(self.addr.clone()).await.unwrap();
         let db = self.db.clone();
-        let allowed_origins = AllowOrigin::list(["http://localhost:5173".parse().unwrap(),"https://glooo-rust.vercel.app".parse().unwrap()]);
+        let allowed_origins = AllowOrigin::list(["http://localhost:5173".parse::<HeaderValue>().unwrap(),"https://glooo-rust.vercel.app".parse::<HeaderValue>().unwrap()]);
 
         let cors = CorsLayer::new()
             // 1. Allow the specific origin of your React app
