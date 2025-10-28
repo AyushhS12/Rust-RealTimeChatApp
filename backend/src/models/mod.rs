@@ -106,7 +106,7 @@ pub struct Chat {
     pub id: Option<ObjectId>,
     users: Vec<ObjectId>,
     //DateTime fields
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "last_updated_message",skip_serializing_if = "Option::is_none")]
     pub last_message_update: Option<ObjectId>,
     pub created_at: DateTime,
 }
@@ -132,10 +132,13 @@ impl Chat {
     pub async fn convert(&self, id: impl IntoObjectId, db: &Db) -> Option<Conversation> {
         let last_message = match self.last_message_update {
             Some(msg) => {
-                db.find_message(msg).await
+                let m = db.find_message(msg).await;
+                log::debug!("{:?}",m);
+                m
             }
             None => None
         };
+        log::debug!("{:?}",self.last_message_update);
         match self.users.as_slice() {
             [user1, user2] => {
                 if user1.to_hex() == id.to_string() {

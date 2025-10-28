@@ -26,7 +26,7 @@ interface Conversation {
   id: Id;
   sender: Id,
   receiver: { id: Id; name: string; username: string };
-  last_message: Message;
+  last_updated_message: Message;
 }
 
 const BaseUrl: string = import.meta.env.VITE_BACKEND_URL;
@@ -252,8 +252,8 @@ function Chat() {
                   fetchMessages(chat.id.$oid);
                 }}
                 className={`flex items-center p-4 cursor-pointer transition ${selectedChatId === chat.id.$oid
-                    ? "bg-gray-300 dark:bg-gray-700"
-                    : "hover:bg-gray-200 dark:hover:bg-gray-800"
+                  ? "bg-gray-300 dark:bg-gray-700"
+                  : "hover:bg-gray-200 dark:hover:bg-gray-800"
                   }`}
               >
                 <div className="h-10 w-10 bg-indigo-500 text-white flex items-center justify-center rounded-full mr-3 font-semibold">
@@ -264,7 +264,12 @@ function Chat() {
                     {chat.receiver.name}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
-                    {chat.last_message?.content || "No messages yet"}
+                    {/* {chat.last_updated_message?.content || "No messages yet"} */}
+                    {chat.last_updated_message.from_id?.$oid === chat.sender.$oid ? (
+                      <>Sent: {chat.last_updated_message.content}</>
+                    ) : (
+                      <>Received: {chat.last_updated_message.content}</>
+                    )}
                   </p>
                 </div>
               </div>

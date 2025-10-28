@@ -580,7 +580,7 @@ impl Db {
 
     // ========== Messages Collection ==========
     pub async fn find_message(&self,id: impl IntoObjectId) -> Option<DirectMessage>{
-        let res = self.messages.find_one(doc! {"_id":id.into_object_id().clone()}).await;
+        let res = self.messages.find_one(doc! {"_id":id.into_object_id()}).await;
         match res {
             Ok(m) => {
                 m
@@ -622,7 +622,7 @@ impl Db {
                             "_id":msg.chat_id,
                         };
                         let update = doc! {
-                            "$set":{"last_updated_message":msg.content}
+                            "$set":{"last_updated_message":r.inserted_id.clone()}
                         };
                         let res = self.chats.update_one(query, update).await.unwrap();
                         info!("{:?}", res);
