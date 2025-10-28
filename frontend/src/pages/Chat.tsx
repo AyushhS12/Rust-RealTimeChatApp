@@ -211,32 +211,40 @@ function Chat() {
         <div className="p-4 text-lg font-semibold bg-gray-200 dark:bg-gray-800 dark:text-white">
           Chats
         </div>
+
         <div className="flex-1 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
-          {!loading && chats.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-gray-500 dark:text-gray-400">
-              <>
-                <span className="mb-4 text-lg">No chats yet!</span>
-                <p className="mb-4 text-sm">Add friends to start chatting.</p>
-                <Link
-                  to="/friends"
-                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition"
-                >
-                  Find Friends
-                </Link>
-              </>
-              {/* )} */}
+          {/* ⏳ Loading Spinner for chat list */}
+          {loading && chats.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">Loading chats...</p>
             </div>
           )}
+
+          {/* 🫂 No Chats yet */}
+          {!loading && chats.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center p-6 text-gray-500 dark:text-gray-400">
+              <span className="mb-4 text-lg">No chats yet!</span>
+              <p className="mb-4 text-sm">Add friends to start chatting.</p>
+              <Link
+                to="/friends"
+                className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition"
+              >
+                Find Friends
+              </Link>
+            </div>
+          )}
+
+          {/* 💬 Chat List */}
           {chats.map((chat) => (
             <div
               key={chat.id.$oid}
               onClick={() => {
-                setLoading(true)
-                setSelectedChatId(chat.id.$oid)
-                fetchMessages(chat.id.$oid)
+                setLoading(true);
+                setSelectedChatId(chat.id.$oid);
+                fetchMessages(chat.id.$oid);
               }}
-              className={`flex items-center p-4 cursor-pointer transition 
-              ${selectedChatId === chat.id.$oid
+              className={`flex items-center p-4 cursor-pointer transition ${selectedChatId === chat.id.$oid
                   ? "bg-gray-300 dark:bg-gray-700"
                   : "hover:bg-gray-200 dark:hover:bg-gray-800"
                 }`}
@@ -255,29 +263,21 @@ function Chat() {
             </div>
           ))}
         </div>
-        {!loading && (
-          <div className="mt-auto p-4 space-y-2 border-t border-gray-300 dark:border-gray-700"> {/* Added padding, spacing, and top border */}
 
-            {/* Friends Button */}
+        {!loading && (
+          <div className="mt-auto p-4 space-y-2 border-t border-gray-300 dark:border-gray-700">
             <Link
-              to="/friends" // Link destination
-              className="w-full inline-block text-center px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-md shadow-sm 
-             hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 
-             focus:ring-green-500 transition duration-150 ease-in-out transform hover:-translate-y-0.5" // Same styling as before
+              to="/friends"
+              className="w-full inline-block text-center px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-md shadow-sm hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition transform hover:-translate-y-0.5"
             >
               Friends
             </Link>
-
-            {/* Logout Button */}
             <button
               onClick={logout}
-              className="w-full px-4 py-2 cursor-pointer text-sm font-medium text-white bg-red-500 rounded-md shadow-sm 
-                 hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 
-                 focus:ring-red-500 transition duration-150 ease-in-out transform hover:-translate-y-0.5" // Added transition and hover transform
+              className="w-full px-4 py-2 cursor-pointer text-sm font-medium text-white bg-red-500 rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition transform hover:-translate-y-0.5"
             >
               Logout
             </button>
-
           </div>
         )}
       </div>
@@ -286,57 +286,73 @@ function Chat() {
       <div className="flex-1 flex flex-col">
         {selectedChat ? (
           <>
-            {/* Chat Header */}
+            {/* Header */}
             <div className="p-4 bg-gray-200 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700">
               <p className="font-semibold text-gray-800 dark:text-gray-100">
                 {selectedChat.receiver.name}
               </p>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.map((msg, idx) => (
-                <div
-                  key={idx}
-                  className={`flex ${msg.from_id?.$oid === selectedChat.receiver.id.$oid
-                    ? "justify-start"
-                    : "justify-end"
-                    }`}
-                >
-                  <div
-                    className={`max-w-xs px-4 py-2 rounded-lg text-white ${msg.from_id?.$oid === selectedChat.receiver.id.$oid
-                      ? "bg-gray-600"
-                      : "bg-indigo-600"
-                      }`}
-                  >
-                    <span className="text-black font-bold">{selectedChat.receiver.id.$oid == msg.from_id?.$oid ? selectedChat.receiver.name : "Me"}</span><br />{msg.content}
-                  </div>
-                  <div ref={messagesEndRef} />
+            {/* Message Loading */}
+            {loading ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-4 text-sm">Loading messages...</p>
+              </div>
+            ) : (
+              <>
+                {/* Messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {chatMessages.map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex ${msg.from_id?.$oid === selectedChat.receiver.id.$oid
+                          ? "justify-start"
+                          : "justify-end"
+                        }`}
+                    >
+                      <div
+                        className={`max-w-xs px-4 py-2 rounded-lg text-white ${msg.from_id?.$oid === selectedChat.receiver.id.$oid
+                            ? "bg-gray-600"
+                            : "bg-indigo-600"
+                          }`}
+                      >
+                        <span className="text-black font-bold">
+                          {selectedChat.receiver.id.$oid === msg.from_id?.$oid
+                            ? selectedChat.receiver.name
+                            : "Me"}
+                        </span>
+                        <br />
+                        {msg.content}
+                      </div>
+                      <div ref={messagesEndRef} />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Message Input */}
-            <div className="p-4 border-t border-gray-300 dark:border-gray-700 flex items-center gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white outline-none"
-              />
-              <button
-                onClick={() => {
-                  if (input.trim() && selectedChat) {
-                    sendMessage(selectedChat, input);
-                    setInput("");
-                  }
-                }}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition"
-              >
-                Send
-              </button>
-            </div>
+                {/* Message Input */}
+                <div className="p-4 border-t border-gray-300 dark:border-gray-700 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    placeholder="Type a message..."
+                    className="flex-1 p-2 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-white outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      if (input.trim() && selectedChat) {
+                        sendMessage(selectedChat, input);
+                        setInput("");
+                      }
+                    }}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition"
+                  >
+                    Send
+                  </button>
+                </div>
+              </>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -345,7 +361,7 @@ function Chat() {
         )}
       </div>
     </div>
-  );
+  )
 }
 
 export default Chat;
