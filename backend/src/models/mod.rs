@@ -315,6 +315,7 @@ pub struct ChatRequest {
 pub enum ChatMessage {
     Direct(DirectMessage),
     Group(GroupMessage),
+
 }
 
 // #[derive(Serialize, Deserialize, Debug, Clone)]
